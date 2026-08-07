@@ -1,0 +1,20 @@
+# Template batch: a list of job configs to run unattended, in order.
+# Each entry is either a path to a job YAML, or an inline job mapping.
+#
+# Run with:  python -m core.queue --config configs/batch.yaml
+#
+# Resumable: re-running this file skips any job whose final MP4 already exists
+# (outputs/<job.name>/<job.name>.mp4). Pass --force to re-run everything.
+
+jobs:
+  - configs/selftest.yaml
+  # - configs/example_job.yaml
+  # - job:
+  #     name: inline_example
+  #   script:
+  #     mode: text
+  #     text: "A second job defined inline, without its own YAML file."
+  #   voice:
+  #     reference_audio: assets/presenter/voice_sample.wav
+  #   video:
+  #     presenter_clip: assets/presenter/clip.mp4

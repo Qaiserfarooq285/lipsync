@@ -1,0 +1,21 @@
+# Voice-clone stage (Chatterbox) — isolated environment, Python 3.12.
+#
+# Kept separate from the lipsync env because the pins are mutually exclusive:
+# chatterbox-tts 0.1.7 requires torch==2.6.0 / transformers==5.2.0 / diffusers==0.29.0,
+# while LatentSync requires torch==2.5.1 / transformers==4.48.0 / diffusers==0.32.2.
+#
+# chatterbox-tts pulls torch, torchaudio, transformers, diffusers, s3tokenizer,
+# resemble-perth, librosa, conformer, safetensors and gradio transitively at its own
+# pinned versions — do not re-pin them here or the resolver will fight itself.
+
+chatterbox-tts==0.1.7
+
+# Used by the wrapper for duration probing and loudness-safe writing.
+soundfile==0.12.1
+
+# resemble-perth's PerthImplicitWatermarker imports pkg_resources at import time
+# (perth/perth_net/__init__.py). `uv venv` doesn't pre-install setuptools like
+# stdlib venv does, and setuptools>=81 dropped pkg_resources entirely — without
+# this exact pin the import silently falls back to None and chatterbox's
+# __init__ crashes with "'NoneType' object is not callable".
+setuptools==75.8.0

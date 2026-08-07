@@ -1,0 +1,55 @@
+# Template for a real job. Copy this file, rename it, and fill in your own values.
+# Every path is resolved relative to the repo root unless it's already absolute.
+#
+# Run with:  python -m core.pipeline --config configs/<your-copy>.yaml
+
+job:
+  name: example_job
+  output_dir: outputs
+
+script:
+  mode: text                          # text | file | generate
+  text: |
+    Write or paste the script here. Plain spoken prose — no markdown, no stage
+    directions. Swap to mode: file and set `file:` to a .txt path for longer
+    scripts, or mode: generate to draft one with a local LLM (see below).
+  file: null                          # used when mode: file
+  generate:                           # used when mode: generate
+    topic: null
+    backend: ollama                   # ollama | groq | cerebras
+    model: qwen2.5:3b
+    target_words: 90
+    style: clear, friendly, spoken-word
+    temperature: 0.7
+
+voice:
+  engine: chatterbox
+  reference_audio: assets/presenter/voice_sample.wav   # NOT assets/samples/ — real, consented media
+  exaggeration: 0.5                   # 0 = flat, 1 = very expressive
+  cfg_weight: 0.5                     # higher = closer to the reference voice, less varied
+  temperature: 0.8
+  seed: 0                             # 0 = new random seed each run
+  max_chars_per_chunk: 280
+
+video:
+  engine: latentsync
+  presenter_clip: assets/presenter/clip.mp4            # NOT assets/samples/ — real, consented media
+  inference_steps: 20                 # more steps = better quality, slower
+  guidance_scale: 1.5
+  resolution: 256                     # 256 -> LatentSync 1.5 (~8 GB VRAM). 512 -> 1.6 (~18 GB VRAM)
+  seed: 1247
+  extend_mode: pingpong               # loop | pingpong | freeze — how to cover audio longer than the clip
+  enable_deepcache: true
+
+captions:
+  enabled: false                      # flip on for an SRT sidecar or burned-in captions
+  mode: srt                           # srt | burn
+  model: small                        # whisperx model size
+  language: en
+  verify_against_script: true
+
+runtime:
+  device: auto                        # auto | cuda | cpu
+  work_dir: work
+  drive_dir: null                     # e.g. /content/drive/MyDrive/presenter-video on Colab
+  keep_intermediates: true

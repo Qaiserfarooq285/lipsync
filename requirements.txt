@@ -1,0 +1,16 @@
+# Orchestrator (CPU-only) requirements — this is what `core/` needs.
+# Safe to install on any machine, including one with no GPU.
+#
+# The GPU stages live in isolated environments because their pins conflict
+# irreconcilably (chatterbox wants torch 2.6.0 / transformers 5.2.0, LatentSync
+# wants torch 2.5.1 / transformers 4.48.0). See requirements/ and scripts/setup_envs.sh.
+
+PyYAML==6.0.2
+numpy==1.26.4
+soundfile==0.12.1
+
+# Environment provisioning for the isolated GPU stages.
+uv==0.12.2
+
+# Tests
+pytest==8.3.4

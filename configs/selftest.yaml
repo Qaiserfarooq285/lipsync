@@ -1,0 +1,43 @@
+# Self-test job: proves the pipeline produces a valid HD video end to end using
+# only openly-licensed placeholders (see assets/samples/README.md). No consent
+# is needed to run this — it never touches real presenter media.
+#
+# Run with:  python -m core.pipeline --config configs/selftest.yaml
+
+job:
+  name: selftest
+  output_dir: outputs
+
+script:
+  mode: text
+  text: >
+    Hello! This is a self test of the presenter video pipeline. If you can see
+    my lips moving roughly in time with these words, the voice cloning and
+    lip sync stages are both working end to end.
+
+voice:
+  engine: chatterbox
+  reference_audio: assets/samples/placeholder_voice.wav
+  exaggeration: 0.5
+  cfg_weight: 0.5
+  temperature: 0.8
+  seed: 0
+  max_chars_per_chunk: 280
+
+video:
+  engine: latentsync
+  presenter_clip: assets/samples/placeholder_presenter.mp4
+  inference_steps: 20
+  guidance_scale: 1.5
+  resolution: 256          # LatentSync 1.5 profile — fits a 12 GB card
+  seed: 1247
+  extend_mode: pingpong
+  enable_deepcache: true
+
+captions:
+  enabled: false
+
+runtime:
+  device: auto
+  work_dir: work
+  keep_intermediates: true

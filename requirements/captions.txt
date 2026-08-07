@@ -1,0 +1,8 @@
+# Captions stage (WhisperX) — isolated environment, Python 3.12. OPTIONAL.
+#
+# Default-off (captions.enabled: false). Only install this env if you turn captions on:
+#   scripts/setup_envs.sh captions
+#
+# whisperx pulls faster-whisper / ctranslate2 / transformers / torch transitively.
+
+whisperx==3.8.6

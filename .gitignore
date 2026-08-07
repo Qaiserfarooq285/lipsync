@@ -1,0 +1,48 @@
+# --- Never commit presenter media, generated video, or model weights ---
+media/
+assets/presenter/
+outputs/
+work/
+weights/
+*.mp4
+*.mov
+*.mkv
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+*.bin
+*.onnx
+
+# Placeholder self-test assets are generated, not committed
+assets/samples/*.mp4
+assets/samples/*.wav
+
+# Vendored third-party source (pinned via scripts/vendor_latentsync.sh)
+vendor/*
+!vendor/.gitkeep
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS / editor
+.DS_Store
+.ipynb_checkpoints/
+.vscode/
+.idea/
