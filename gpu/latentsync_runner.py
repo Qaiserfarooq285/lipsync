@@ -57,6 +57,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--temp-dir", default="temp")
     ap.add_argument("--seed", type=int, default=1247)
     ap.add_argument("--enable-deepcache", action="store_true")
+    ap.add_argument(
+        "--low-vram", action="store_true",
+        help="enable VAE/attention slicing so the 512px profile fits on a smaller card",
+    )
     ap.add_argument("--face-detector", default="mediapipe",
                     choices=["mediapipe", "insightface"])
     args = ap.parse_args(argv)
@@ -124,6 +128,23 @@ def main(argv: list[str] | None = None) -> int:
     pipeline = LipsyncPipeline(
         vae=vae, audio_encoder=audio_encoder, unet=unet, scheduler=scheduler
     ).to("cuda")
+
+    if args.low_vram:
+        # Upstream's stated VRAM minimums assume none of these are on. Together
+        # they are what makes the 512px profile fit on a 12 GB card at all.
+        #
+        # VAE slicing: decode_latents() decodes a whole 16-frame chunk in one
+        # call; at 512px that single decode is the largest transient allocation
+        # in the run. Slicing decodes frame-by-frame instead.
+        pipeline.enable_vae_slicing()
+        # Attention slicing is a UNet-side win, but LatentSync's UNet3DConditionModel
+        # is a custom model that may not implement the diffusers hook - treat it
+        # as best-effort rather than letting an AttributeError kill the run.
+        try:
+            pipeline.enable_attention_slicing(1)
+            print("[lipsync] low-vram: vae slicing + attention slicing", flush=True)
+        except (AttributeError, NotImplementedError, ValueError) as exc:
+            print(f"[lipsync] low-vram: vae slicing only (attention slicing unavailable: {exc})", flush=True)
 
     if args.enable_deepcache:
         helper = DeepCacheSDHelper(pipe=pipeline)

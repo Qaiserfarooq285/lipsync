@@ -36,7 +36,7 @@ video:
   presenter_clip: assets/presenter/clip.mp4            # NOT assets/samples/ — real, consented media
   inference_steps: 30                 # more steps = better quality, slower
   guidance_scale: 1.5
-  resolution: 256                     # 256 -> LatentSync 1.5 (~8 GB VRAM). 512 -> 1.6 (~18 GB VRAM)
+  resolution: 512                     # 512 -> LatentSync 1.6, sharper teeth/lips. 256 -> 1.5, ~5x faster
   seed: 1247
   extend_mode: pingpong               # loop | pingpong | freeze — how to cover audio longer than the clip
   # DeepCache trades lip-sync accuracy for speed (reuses cached UNet features

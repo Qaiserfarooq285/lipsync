@@ -48,7 +48,10 @@ DEFAULTS: dict[str, Any] = {
         "presenter_clip": "assets/samples/placeholder_presenter.mp4",
         "inference_steps": 30,
         "guidance_scale": 1.5,
-        "resolution": 256,
+        # 512 -> LatentSync 1.6, 256 -> 1.5. 1.6 renders visibly sharper teeth and
+        # lip edges (upstream built it for exactly that) and still fits a 12 GB
+        # card thanks to the slicing in `low_vram`. Drop to 256 for ~5x faster runs.
+        "resolution": 512,
         "seed": 1247,
         "extend_mode": "pingpong",  # loop | pingpong | freeze
         # DeepCache reuses cached UNet features across nearby denoising steps to

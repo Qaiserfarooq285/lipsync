@@ -40,9 +40,14 @@ _VERSION_PROFILE = {
     "1.6": ("configs/unet/stage2_512.yaml", 512),
 }
 
-#: Minimum free VRAM to attempt each version, per upstream's stated minimums,
-#: with headroom since "minimum" in the README means "just barely fits".
-_VRAM_MIN_MB = {"1.5": 8500, "1.6": 19000}
+#: Minimum free VRAM to attempt each version.
+#:
+#: Upstream's README quotes 8 GB for 1.5 and 18 GB for 1.6. The 1.6 figure
+#: assumes no VAE/attention slicing: measured here, 1.6 at 512px peaks around
+#: 7.5 GB with ``low_vram`` on (which is the default for that profile), so the
+#: literal upstream number would refuse a configuration that demonstrably runs.
+#: These are the slicing-enabled numbers, with headroom.
+_VRAM_MIN_MB = {"1.5": 8500, "1.6": 9500}
 
 
 def resolve_version(resolution: int) -> str:
@@ -109,6 +114,7 @@ def run(
     work_dir: Path | None = None,
     weights_dir: Path | None = None,
     skip_vram_check: bool = False,
+    low_vram: bool | None = None,
 ) -> Path:
     """Produce a lip-synced MP4. Loops/extends the clip if the audio is longer."""
     from iolib import media
@@ -144,6 +150,11 @@ def run(
             f"[lipsync] video.resolution={resolution} snapped to {config_resolution} "
             f"(LatentSync {version}'s native resolution)", flush=True,
         )
+
+    # The 512px profile does not fit a consumer card without slicing, so default
+    # it on there; at 256px it only costs speed, so leave it off unless asked.
+    if low_vram is None:
+        low_vram = version == "1.6"
 
     if skip_vram_check:
         print("[lipsync] VRAM preflight skipped (--skip-vram-check)", flush=True)
@@ -203,6 +214,8 @@ def run(
     ]
     if enable_deepcache:
         runner_args.append("--enable-deepcache")
+    if low_vram:
+        runner_args.append("--low-vram")
 
     latentsync_runner.main(runner_args)
 
@@ -230,6 +243,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--skip-vram-check", action="store_true",
         help="skip the free-VRAM preflight and let CUDA OOM speak for itself if it doesn't fit",
+    )
+    ap.add_argument(
+        "--low-vram", dest="low_vram", action="store_true", default=None,
+        help="force VAE/attention slicing on (default: on for 512px, off for 256px)",
+    )
+    ap.add_argument(
+        "--no-low-vram", dest="low_vram", action="store_false",
+        help="force slicing off even at 512px",
     )
     ap.add_argument(
         "--download-only", action="store_true",
@@ -266,6 +287,7 @@ def main(argv: list[str] | None = None) -> int:
         work_dir=Path(args.work_dir) if args.work_dir else None,
         weights_dir=Path(args.weights_dir) if args.weights_dir else None,
         skip_vram_check=args.skip_vram_check,
+        low_vram=args.low_vram,
     )
     return 0
 
