@@ -10,6 +10,17 @@ and is used here instead. ``gpu/latentsync_runner.py`` monkey-patches this class
 in before LatentSync's ``ImageProcessor`` is constructed, so no vendored file is
 edited.
 
+Runs MediaPipe in a **subprocess**, not in-process. MediaPipe's FaceMesh uses
+TFLite's XNNPACK delegate, which builds its own native thread pool; constructing
+it in the same process as PyTorch/CUDA (as happens here, inside LatentSync's
+inference loop) triggers a real glibc assertion failure in the priority-protected
+mutex implementation (``tpp.c:83 __pthread_tpp_change_priority``) — confirmed by
+reproducing it directly, including a variant where the process hangs indefinitely
+instead of crashing cleanly. Capping OpenMP thread counts only delays the same
+failure. The reliable fix is process isolation: ``mediapipe_worker.py`` never
+imports torch, so its thread pool never coexists with PyTorch's. See that
+module's docstring for the wire protocol.
+
 Matching the interface, not the semantics: downstream code
 (``latentsync/utils/image_processor.py::ImageProcessor.affine_transform``) reads
 exactly three anchor points out of whatever 106-slot array we return:
@@ -22,73 +33,103 @@ and warps the source frame so pt_left_eye lands at the smaller-x template point,
 pt_right_eye at the larger-x one, and pt_nose below both. InsightFace's own
 left/right naming for those index groups is undocumented outside its source, and
 guessing wrong would silently rotate every cropped face 180 degrees before it
-reaches the UNet — a bug that would not raise an exception, just quietly wreck
-lip-sync quality. To sidestep that risk entirely, this detector doesn't try to
+reaches the UNet. To sidestep that risk entirely, this detector doesn't try to
 replicate InsightFace's index semantics: it computes two eyebrow-cluster
 centroids from MediaPipe's face mesh, sorts them by their actual pixel x
 position each frame, and writes the smaller-x one into the "left" slots and the
 larger-x one into the "right" slots. The result is correct by construction
-regardless of camera mirroring or which side is anatomically which.
+regardless of camera mirroring or which side is anatomically which. (Verified
+directly against the placeholder clip's first frame.)
 """
 
 from __future__ import annotations
 
+import os
+import struct
+import subprocess
+import sys
+
 import numpy as np
 
-#: MediaPipe canonical face mesh indices, official FACEMESH_LEFT_EYEBROW /
-#: FACEMESH_RIGHT_EYEBROW sets (subject-anatomical naming; we re-sort by pixel
-#: position below, so which literal set is "left" here doesn't matter).
-_EYEBROW_A = [46, 53, 52, 65, 55, 70, 63, 105, 66, 107]
-_EYEBROW_B = [276, 283, 282, 295, 285, 300, 293, 334, 296, 336]
-_NOSE = [1, 4, 5, 195, 197]
-
-# image_processor.py reads these exact slots out of a 106-length array.
-_LEFT_SLOTS = [43, 48, 49, 51, 50]
-_RIGHT_SLOTS = [101, 102, 103, 104, 105]
-_NOSE_SLOTS = [74, 77, 83, 86]
-_ARRAY_LEN = 106
+_HEADER = struct.Struct("<III")
+_BBOX = struct.Struct("<4i")
+_LANDMARKS_BYTES = 106 * 2 * 4  # int32
 
 
 class MediaPipeFaceDetector:
     """Same call contract as LatentSync's InsightFace-backed ``FaceDetector``."""
 
     def __init__(self, device: str = "cuda"):
-        # mediapipe's CPU FaceMesh is fast enough that it's not the pipeline's
-        # bottleneck (the diffusion UNet is); no GPU delegate wiring needed.
-        import mediapipe as mp
+        repo_root = _repo_root()
+        env = os.environ.copy()
+        existing = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = os.pathsep.join(p for p in (str(repo_root), existing) if p)
 
-        self._mesh = mp.solutions.face_mesh.FaceMesh(
-            static_image_mode=False,   # sequential per-frame calls -> let it track
-            max_num_faces=1,
-            refine_landmarks=False,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5,
+        self._proc = subprocess.Popen(
+            [sys.executable, "-m", "gpu.patches.mediapipe_worker"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=None,  # let the worker's stderr (mediapipe's own logging) pass through
+            cwd=str(repo_root),
+            env=env,
         )
 
     def __call__(self, frame: np.ndarray, threshold: float = 0.5):
         """``frame`` is an RGB uint8 HxWx3 array. Returns ``(bbox, landmarks)``
         or ``(None, None)`` if no face was found — same contract as upstream."""
-        h, w = frame.shape[:2]
-        result = self._mesh.process(frame)
-        if not result.multi_face_landmarks:
+        if self._proc.poll() is not None:
+            raise RuntimeError(
+                f"mediapipe worker subprocess exited unexpectedly (code {self._proc.returncode})"
+            )
+
+        frame = np.ascontiguousarray(frame, dtype=np.uint8)
+        h, w, c = frame.shape
+
+        assert self._proc.stdin is not None and self._proc.stdout is not None
+        self._proc.stdin.write(_HEADER.pack(h, w, c))
+        self._proc.stdin.write(frame.tobytes())
+        self._proc.stdin.flush()
+
+        flag = self._proc.stdout.read(1)
+        if not flag:
+            raise RuntimeError("mediapipe worker subprocess closed its output unexpectedly")
+        if flag == b"\x00":
             return None, None
 
-        lm = result.multi_face_landmarks[0].landmark
-        pts = np.array([(p.x * w, p.y * h) for p in lm], dtype=np.float64)
+        landmark_bytes = _read_exact(self._proc.stdout, _LANDMARKS_BYTES)
+        bbox_bytes = _read_exact(self._proc.stdout, _BBOX.size)
+        landmarks = np.frombuffer(landmark_bytes, dtype=np.int32).reshape(106, 2)
+        bbox = _BBOX.unpack(bbox_bytes)
+        return bbox, landmarks
 
-        centroid_a = pts[_EYEBROW_A].mean(axis=0)
-        centroid_b = pts[_EYEBROW_B].mean(axis=0)
-        nose = pts[_NOSE].mean(axis=0)
+    def close(self) -> None:
+        proc = getattr(self, "_proc", None)
+        if proc is None or proc.poll() is not None:
+            return
+        try:
+            proc.stdin.close()
+        except (BrokenPipeError, OSError):
+            pass
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
 
-        left, right = (centroid_a, centroid_b) if centroid_a[0] <= centroid_b[0] else (centroid_b, centroid_a)
+    def __del__(self):
+        self.close()
 
-        landmarks = np.zeros((_ARRAY_LEN, 2), dtype=np.float64)
-        landmarks[_LEFT_SLOTS] = left
-        landmarks[_RIGHT_SLOTS] = right
-        landmarks[_NOSE_SLOTS] = nose
 
-        x1, y1 = pts.min(axis=0)
-        x2, y2 = pts.max(axis=0)
-        bbox = (max(0, int(x1)), max(0, int(y1)), min(w, int(x2)), min(h, int(y2)))
+def _read_exact(stream, n: int) -> bytes:
+    buf = bytearray()
+    while len(buf) < n:
+        chunk = stream.read(n - len(buf))
+        if not chunk:
+            raise RuntimeError("mediapipe worker subprocess closed its output mid-response")
+        buf.extend(chunk)
+    return bytes(buf)
 
-        return bbox, np.round(landmarks).astype(np.int_)
+
+def _repo_root():
+    from pathlib import Path
+
+    return Path(__file__).resolve().parent.parent.parent

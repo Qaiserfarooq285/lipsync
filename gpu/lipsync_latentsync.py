@@ -113,9 +113,12 @@ def run(
     """Produce a lip-synced MP4. Loops/extends the clip if the audio is longer."""
     from iolib import media
 
-    presenter_clip = Path(presenter_clip)
-    voice_audio = Path(voice_audio)
-    out_path = Path(out_path)
+    presenter_clip = Path(presenter_clip).resolve()
+    voice_audio = Path(voice_audio).resolve()
+    # Resolved eagerly: latentsync_runner.main() below calls os.chdir() into
+    # vendor/LatentSync/ and never changes back, so any relative path checked
+    # after that call silently resolves against the wrong directory.
+    out_path = Path(out_path).resolve()
     if not presenter_clip.is_file():
         raise GpuError(f"presenter clip not found: {presenter_clip}")
     if not voice_audio.is_file():
