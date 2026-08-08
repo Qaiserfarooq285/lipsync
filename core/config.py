@@ -46,12 +46,16 @@ DEFAULTS: dict[str, Any] = {
     "video": {
         "engine": "latentsync",
         "presenter_clip": "assets/samples/placeholder_presenter.mp4",
-        "inference_steps": 20,
+        "inference_steps": 30,
         "guidance_scale": 1.5,
         "resolution": 256,
         "seed": 1247,
         "extend_mode": "pingpong",  # loop | pingpong | freeze
-        "enable_deepcache": True,
+        # DeepCache reuses cached UNet features across nearby denoising steps to
+        # speed up inference — upstream's own default. In testing it visibly
+        # dampened frame-to-frame mouth-shape variation (repetitive shapes not
+        # tracking the audio); off by default here trades speed for lip accuracy.
+        "enable_deepcache": False,
     },
     "captions": {
         "enabled": False,

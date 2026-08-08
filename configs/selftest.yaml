@@ -27,12 +27,12 @@ voice:
 video:
   engine: latentsync
   presenter_clip: assets/samples/placeholder_presenter.mp4
-  inference_steps: 20
+  inference_steps: 30      # DeepCache off + more steps: measurably better lip accuracy, slower
   guidance_scale: 1.5
   resolution: 256          # LatentSync 1.5 profile — fits a 12 GB card
   seed: 1247
   extend_mode: pingpong
-  enable_deepcache: true
+  enable_deepcache: false
 
 captions:
   enabled: false

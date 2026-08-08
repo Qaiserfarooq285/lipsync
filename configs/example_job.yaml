@@ -34,12 +34,15 @@ voice:
 video:
   engine: latentsync
   presenter_clip: assets/presenter/clip.mp4            # NOT assets/samples/ — real, consented media
-  inference_steps: 20                 # more steps = better quality, slower
+  inference_steps: 30                 # more steps = better quality, slower
   guidance_scale: 1.5
   resolution: 256                     # 256 -> LatentSync 1.5 (~8 GB VRAM). 512 -> 1.6 (~18 GB VRAM)
   seed: 1247
   extend_mode: pingpong               # loop | pingpong | freeze — how to cover audio longer than the clip
-  enable_deepcache: true
+  # DeepCache trades lip-sync accuracy for speed (reuses cached UNet features
+  # across nearby steps) — off by default; flip on if you need faster batches
+  # and can tolerate slightly less precise mouth-shape variation.
+  enable_deepcache: false
 
 captions:
   enabled: false                      # flip on for an SRT sidecar or burned-in captions
