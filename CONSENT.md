@@ -34,9 +34,9 @@ delete the derived media.
 ## Record
 
 Presenter name:        Dr Ajay
-Consent obtained on:   <date>
-Signed document:       <where the agreement lives — not in this repo>
-Scope of use granted:  <e.g. client marketing videos, commercial use permitted>
+Consent obtained on:   2026-08-04
+Signed document:       none on file - clips supplied by the client for testing; see client correspondence
+Scope of use granted:  internal testing and evaluation only - NOT cleared for publication or distribution
 Voice cloning permitted:            yes
 Likeness / lip-sync synthesis:      yes
 Recorded by:           Qaiser Farooq

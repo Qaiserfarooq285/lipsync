@@ -73,6 +73,7 @@ def run_job(cfg: JobConfig, *, force: list[str] | None = None) -> Path:
                 "--temperature", str(cfg.voice["temperature"]),
                 "--seed", str(cfg.voice["seed"]),
                 "--max-chars-per-chunk", str(cfg.voice["max_chars_per_chunk"]),
+                "--speed", str(cfg.voice.get("speed", 1.0)),
             ],
             log_path=log_dir / "voice.log",
         )

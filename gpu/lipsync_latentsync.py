@@ -56,6 +56,52 @@ def resolve_version(resolution: int) -> str:
     return "1.5"
 
 
+#: Characters that break an unquoted path once it reaches a shell.
+_SHELL_UNSAFE = set(" \t\n'\"\\$`&;|<>()*?[]!{}#~")
+
+
+def _shell_safe_clip(clip: Path, scratch: Path) -> Path:
+    """Return a path safe to interpolate into a shell command.
+
+    LatentSync builds its ffmpeg invocations by f-string and runs them with
+    ``shell=True`` without quoting (see vendor/LatentSync/latentsync/utils/util.py
+    read_video), so a path containing a space is split into separate arguments and
+    the run dies with a misleading "No such file or directory" naming a truncated
+    path. Real footage routinely arrives with spaces in the filename.
+
+    Rather than patch the vendored file, link the clip under a sanitised name in
+    our own scratch directory and hand that over. A symlink costs nothing; only if
+    the filesystem refuses one do we fall back to copying.
+    """
+    clip = Path(clip)
+    if not (set(str(clip)) & _SHELL_UNSAFE):
+        return clip
+
+    scratch.mkdir(parents=True, exist_ok=True)
+    safe = scratch / f"driving_clip{clip.suffix or '.mp4'}"
+    if set(str(safe)) & _SHELL_UNSAFE:
+        raise GpuError(
+            "The working directory itself contains characters that LatentSync's "
+            f"unquoted shell commands cannot handle:\n  {safe}\n"
+            "  Move the repo (or set runtime.work_dir) somewhere without spaces or "
+            "shell metacharacters in the path."
+        )
+    if safe.is_symlink() or safe.exists():
+        safe.unlink()
+    try:
+        safe.symlink_to(clip.resolve())
+    except OSError:
+        import shutil
+
+        shutil.copy2(clip, safe)
+
+    print(
+        f"[lipsync] source path needs escaping; staged as {safe.name} "
+        "(LatentSync shells out unquoted)", flush=True,
+    )
+    return safe
+
+
 def ensure_checkpoints(version: str, *, weights_dir: Path | None = None) -> Path:
     """Download the LatentSync checkpoint pair if not already cached.
 
@@ -194,6 +240,8 @@ def run(
             mode=extend_mode, fps=video_info.fps,
         )
         print(f"[lipsync] extended clip ({extend_mode}) -> {driving_clip}", flush=True)
+
+    driving_clip = _shell_safe_clip(driving_clip, scratch)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
 

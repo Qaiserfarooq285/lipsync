@@ -273,6 +273,51 @@ def ensure_wav(src: Path, dst: Path, *, sample_rate: int = 16000, mono: bool = T
     return dst
 
 
+def time_stretch(src: Path, dst: Path, factor: float) -> Path:
+    """Change speech tempo without shifting pitch.
+
+    ``factor`` is a tempo multiplier: 0.8 makes the delivery 25% longer (slower),
+    1.2 makes it faster. A cloned voice inherits its cadence from the reference
+    sample, which is often faster than a scripted presenter delivery wants to be,
+    and no generation parameter reliably controls that — ``cfg_weight`` barely
+    moves it. Stretching afterwards is deterministic and keeps the timbre intact.
+
+    ffmpeg's ``atempo`` only accepts 0.5-2.0 per instance, so larger changes are
+    chained. Below about 0.7 the artefacts start to be audible, so callers should
+    prefer rewriting the script over stretching very hard.
+    """
+    src, dst = Path(src), Path(dst)
+    if factor <= 0:
+        raise MediaError(f"time_stretch factor must be positive, got {factor}")
+    dst.parent.mkdir(parents=True, exist_ok=True)
+
+    if abs(factor - 1.0) < 1e-3:
+        if dst.resolve() != src.resolve():
+            shutil.copy2(src, dst)
+        return dst
+
+    # Decompose into steps ffmpeg will accept.
+    steps: list[float] = []
+    remaining = factor
+    while remaining < 0.5:
+        steps.append(0.5)
+        remaining /= 0.5
+    while remaining > 2.0:
+        steps.append(2.0)
+        remaining /= 2.0
+    steps.append(remaining)
+
+    chain = ",".join(f"atempo={s:.6f}" for s in steps)
+    run([
+        _exe("ffmpeg"), "-y", "-v", "error",
+        "-i", str(src),
+        "-filter:a", chain,
+        "-c:a", "pcm_s16le",
+        str(dst),
+    ])
+    return dst
+
+
 def is_playable(path: Path) -> bool:
     """Cheap validity check: does it decode and report a positive duration?"""
     try:

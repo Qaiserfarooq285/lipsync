@@ -42,6 +42,11 @@ DEFAULTS: dict[str, Any] = {
         "temperature": 0.8,
         "seed": 0,
         "max_chars_per_chunk": 280,
+        # Tempo multiplier applied after synthesis, pitch preserved. Chatterbox
+        # inherits cadence from the reference sample and often lands far faster
+        # than a scripted delivery wants; no generation parameter reliably
+        # controls that. 1.0 = leave as generated.
+        "speed": 1.0,
     },
     "video": {
         "engine": "latentsync",

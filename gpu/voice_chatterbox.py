@@ -50,6 +50,7 @@ def run(
     temperature: float = 0.8,
     seed: int = 0,
     max_chars_per_chunk: int = 280,
+    speed: float = 1.0,
 ) -> Path:
     """Synthesise ``text`` in the voice of ``reference_audio``; return the WAV path.
 
@@ -123,7 +124,24 @@ def run(
     torchaudio.save(str(out_path), audio, model.sr)
 
     seconds = audio.shape[1] / model.sr
-    print(f"[voice] wrote {out_path} ({seconds:.2f}s @ {model.sr} Hz)", flush=True)
+    if abs(speed - 1.0) >= 1e-3:
+        from iolib import media
+
+        tmp = out_path.with_name(out_path.stem + "_raw" + out_path.suffix)
+        out_path.replace(tmp)
+        media.time_stretch(tmp, out_path, speed)
+        tmp.unlink(missing_ok=True)
+        stretched = media.probe_duration(out_path)
+        print(
+            f"[voice] tempo x{speed:.2f}: {seconds:.2f}s -> {stretched:.2f}s", flush=True
+        )
+        seconds = stretched
+
+    words = len(text.split())
+    print(
+        f"[voice] wrote {out_path} ({seconds:.2f}s @ {model.sr} Hz, "
+        f"{words / seconds * 60:.0f} words/min)", flush=True,
+    )
 
     if device == "cuda":
         del model
@@ -143,6 +161,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--temperature", type=float, default=0.8)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--max-chars-per-chunk", type=int, default=280)
+    ap.add_argument(
+        "--speed", type=float, default=1.0,
+        help="tempo multiplier applied after synthesis; <1 slows delivery, pitch preserved",
+    )
     args = ap.parse_args(argv)
 
     text = Path(args.text_file).read_text(encoding="utf-8")
@@ -156,6 +178,7 @@ def main(argv: list[str] | None = None) -> int:
         temperature=args.temperature,
         seed=args.seed,
         max_chars_per_chunk=args.max_chars_per_chunk,
+        speed=args.speed,
     )
     return 0
 
