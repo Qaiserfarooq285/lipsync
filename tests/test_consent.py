@@ -1,4 +1,4 @@
-from pathlib import Path
+import pytest
 
 import core.consent as consent
 from core.config import REPO_ROOT, config_from_dict
@@ -13,13 +13,36 @@ def test_real_looking_path_is_not_exempt():
     assert not consent.is_exempt(REPO_ROOT / "assets" / "presenter" / "clip.mp4")
 
 
-def test_consent_status_not_granted_by_default():
+#: The record as this repo ships it, before anyone fills it in. Held here as a
+#: fixture rather than read from the real CONSENT.md: that file is meant to be
+#: edited, and a suite that asserts its live contents starts failing the moment
+#: a real consent record is entered - reporting a problem with the repo when
+#: nothing is actually wrong.
+_UNGRANTED_STUB = """# Presenter Consent Record
+
+**STATUS: NOT GRANTED**
+
+- **Presenter name:** `<full name>`
+- **Consent obtained on (YYYY-MM-DD):** `<date>`
+"""
+
+
+@pytest.fixture
+def ungranted(tmp_path, monkeypatch):
+    stub = tmp_path / "CONSENT.md"
+    stub.write_text(_UNGRANTED_STUB, encoding="utf-8")
+    monkeypatch.setattr(consent, "CONSENT_FILE", stub)
+    return stub
+
+
+def test_consent_status_not_granted_for_unfilled_record(ungranted):
     granted, problems = consent.consent_status()
     assert granted is False
     assert problems
 
 
-def test_assert_allowed_passes_for_placeholder_job():
+def test_assert_allowed_passes_for_placeholder_job(ungranted):
+    """Placeholders are exempt, so this must pass even with consent withheld."""
     cfg = config_from_dict({
         "voice": {"reference_audio": "assets/samples/placeholder_voice.wav"},
         "video": {"presenter_clip": "assets/samples/placeholder_presenter.mp4"},
@@ -27,17 +50,13 @@ def test_assert_allowed_passes_for_placeholder_job():
     consent.assert_allowed(cfg)  # must not raise
 
 
-def test_assert_allowed_blocks_real_media_without_consent():
+def test_assert_allowed_blocks_real_media_without_consent(ungranted):
     cfg = config_from_dict({
         "voice": {"reference_audio": "assets/presenter/voice.wav"},
         "video": {"presenter_clip": "assets/presenter/clip.mp4"},
     })
-    try:
+    with pytest.raises(consent.ConsentError):
         consent.assert_allowed(cfg)
-        raised = False
-    except consent.ConsentError:
-        raised = True
-    assert raised
 
 
 def test_fenced_example_cannot_open_the_gate(tmp_path, monkeypatch):
