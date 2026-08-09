@@ -1,0 +1,52 @@
+# Dr Ajay — project introduction, spoken in his own voice.
+#
+# Real, identifiable media: blocked until CONSENT.md reads STATUS: GRANTED.
+# Verify with:  python -m core.consent --check
+#
+# Clip 5 is the pick of the three: largest face in frame (262x324px, 17.2% of
+# frame height) and the longest, so there is room to choose a clean voice window.
+#
+# Run order:
+#   ./scripts/prepare_presenter.sh "assets/presenter/dr ajay avtar 5 c50.mp4" --start <HH:MM:SS>
+#   python -m core.pipeline --config configs/ajay_intro.yaml
+
+job:
+  name: ajay_intro
+  output_dir: outputs
+
+script:
+  mode: text
+  text: >
+    Hello, I'm Doctor Ajay. I want to show you something we've been working on.
+    This video was not filmed. I recorded once, and everything you're seeing now
+    was generated from a written script, in my own voice, with my lip movements
+    matched to the words. It means we can produce a new video whenever we need
+    one, without booking a studio or setting up a camera again. The whole system
+    runs on open source models, on a single computer, and it's built so the
+    footage and the voice stay under our control.
+
+voice:
+  engine: chatterbox
+  reference_audio: assets/presenter/voice_sample.wav
+  exaggeration: 0.5
+  cfg_weight: 0.5
+  temperature: 0.8
+  seed: 0
+  max_chars_per_chunk: 280
+
+video:
+  engine: latentsync
+  presenter_clip: assets/presenter/dr ajay avtar 5 c50.mp4
+  inference_steps: 30
+  guidance_scale: 1.5
+  resolution: 512
+  seed: 1247
+  extend_mode: pingpong
+  enable_deepcache: false
+
+captions:
+  enabled: false
+
+runtime:
+  device: auto
+  work_dir: work

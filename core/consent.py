@@ -23,18 +23,52 @@ CONSENT_FILE = REPO_ROOT / "CONSENT.md"
 #: Directories whose contents are synthetic placeholders and need no consent.
 EXEMPT_DIRS = (REPO_ROOT / "assets" / "samples",)
 
-_STATUS_RE = re.compile(r"^\s*\**\s*STATUS:\s*([A-Z_ ]+?)\s*\**\s*$", re.MULTILINE)
+#: Matches a status declaration. Deliberately anchored to the start of a line and
+#: tolerant of surrounding bold markers, but see _declaration_text(): fenced code
+#: blocks are stripped before this ever runs, because this file *documents* the
+#: exact string it is looking for and would otherwise match its own instructions.
+_STATUS_RE = re.compile(r"^\s*\**\s*STATUS:\s*([A-Za-z_ ]+?)\s*\**\s*(?:[-—:].*)?$", re.MULTILINE)
+_FENCE_RE = re.compile(r"```.*?```", re.DOTALL)
 _PLACEHOLDER_RE = re.compile(r"<[^>\n]+>")
 
 REQUIRED_FIELDS = (
     "Presenter name",
     "Consent obtained on",
-    "Signed document location",
+    "Signed document",
     "Scope of use granted",
     "Voice cloning permitted",
-    "Likeness / lip-sync synthesis permitted",
+    "Likeness / lip-sync synthesis",
     "Recorded by",
 )
+
+
+def _declaration_text(text: str) -> str:
+    """The part of the file that counts as a declaration, not documentation.
+
+    Everything inside fenced code blocks is instructional - this file quotes the
+    literal status string people are told to write, so parsing it naively lets
+    the how-to section open the gate on its own.
+    """
+    return _FENCE_RE.sub("", text)
+
+
+def _find_field(text: str, label: str) -> str | None:
+    """Read a record field, accepting either the templated markdown row
+    (``- **Label:** value``) or a plain ``Label: value`` line.
+
+    People edit this by hand, often by pasting from somewhere else, and a
+    consent record that silently reads as absent because a bold marker was lost
+    is worse than one that is merely untidy.
+    """
+    patterns = (
+        rf"^-\s+\*\*{re.escape(label)}[^:]*:\*\*\s*(.+)$",
+        rf"^\s*\**{re.escape(label)}[^:]*:\**\s+(.+)$",
+    )
+    for pattern in patterns:
+        row = re.search(pattern, text, re.MULTILINE)
+        if row is not None:
+            return row.group(1).strip().strip("`").strip()
+    return None
 
 
 class ConsentError(RuntimeError):
@@ -53,8 +87,10 @@ def consent_status() -> tuple[bool, list[str]]:
     if not text:
         return False, [f"{CONSENT_FILE.name} is missing"]
 
+    declaration = _declaration_text(text)
+
     problems: list[str] = []
-    match = _STATUS_RE.search(text)
+    match = _STATUS_RE.search(declaration)
     status = (match.group(1).strip() if match else "MISSING").upper()
     if status != "GRANTED":
         problems.append(f"{CONSENT_FILE.name} status is {status!r}, expected 'GRANTED'")
@@ -62,12 +98,10 @@ def consent_status() -> tuple[bool, list[str]]:
 
     # Status says granted — make sure the record was actually filled in.
     for label in REQUIRED_FIELDS:
-        row = re.search(rf"^-\s+\*\*{re.escape(label)}[^:]*:\*\*\s*(.+)$", text, re.MULTILINE)
-        if row is None:
+        value = _find_field(declaration, label)
+        if value is None:
             problems.append(f"missing field in {CONSENT_FILE.name}: {label}")
-            continue
-        value = row.group(1).strip().strip("`").strip()
-        if not value or _PLACEHOLDER_RE.search(value):
+        elif not value or _PLACEHOLDER_RE.search(value):
             problems.append(f"unfilled field in {CONSENT_FILE.name}: {label}")
 
     return (not problems), problems

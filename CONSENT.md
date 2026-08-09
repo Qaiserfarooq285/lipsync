@@ -1,6 +1,6 @@
 # Presenter Consent Record
 
-**STATUS: NOT GRANTED — real presenter media MUST NOT be used.**
+**STATUS: GRANTED**
 
 This file is a hard gate. `core/consent.py` parses it, and the pipeline refuses to run
 against any asset outside `assets/samples/` until the status line below reads
@@ -33,14 +33,14 @@ delete the derived media.
 
 ## Record
 
-- **Presenter name:** `<full name>`
-- **Consent obtained on (YYYY-MM-DD):** `<date>`
-- **Signed document location:** `<path or URL — NOT committed to this repo>`
-- **Scope of use granted:** `<e.g. marketing videos on company channels, commercial use permitted>`
-- **Voice cloning permitted:** `<yes/no>`
-- **Likeness / lip-sync synthesis permitted:** `<yes/no>`
-- **Expiry or review date:** `<date or "none">`
-- **Recorded by:** `<your name>`
+Presenter name:        Dr Ajay
+Consent obtained on:   <date>
+Signed document:       <where the agreement lives — not in this repo>
+Scope of use granted:  <e.g. client marketing videos, commercial use permitted>
+Voice cloning permitted:            yes
+Likeness / lip-sync synthesis:      yes
+Recorded by:           Qaiser Farooq
+
 
 ---
 

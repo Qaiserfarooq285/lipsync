@@ -150,12 +150,14 @@ def report(path: Path) -> int:
               f"{len(faces)} sampled frames - check for turned-away shots")
 
     if avg < 0.22:
-        gain = 0.25 / avg if avg else 0
+        px = sample["face_h"]
         print()
-        print("  to improve   Crop tighter to head-and-shoulders before running, if the")
-        print(f"               framing allows - roughly {gain:.1f}x closer would reach the")
-        print("               comfortable band. Cropping a high-resolution source keeps real")
-        print("               pixels; upscaling a small face does not add any.")
+        print(f"  to improve   The face carries {px}px of real detail, and that number is")
+        print("               fixed at the shoot. LatentSync crops to the face by landmark,")
+        print("               not by frame, so cropping or upscaling the video afterwards")
+        print("               does not give the model anything more to work with - it only")
+        print("               changes how large the face appears on screen.")
+        print("               The fix is at the camera: frame tighter, or shoot 4K.")
 
     return 0
 
