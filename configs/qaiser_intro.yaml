@@ -1,0 +1,53 @@
+# Qaiser Farooq — project introduction.
+#
+# BLOCKED until CONSENT.md reads STATUS: GRANTED. The paths below point at
+# assets/presenter/, which core/consent.py treats as real, identifiable media.
+#
+# Before running:
+#   1. Drop the clips in assets/presenter/
+#   2. python -m core.check_footage assets/presenter/*.mp4
+#   3. ./scripts/prepare_presenter.sh assets/presenter/<best-clip>.mp4 --start <HH:MM:SS>
+#   4. Fill in CONSENT.md
+#   5. python -m core.pipeline --config configs/qaiser_intro.yaml
+
+job:
+  name: qaiser_intro
+  output_dir: outputs
+
+script:
+  mode: text
+  text: >
+    Hi, I'm Qaiser Farooq, an AI engineer. I want to show you something I've
+    been building. It's a pipeline that turns a written script into a finished
+    video of a presenter, speaking in their own cloned voice, with their lip
+    movements matched to the audio. You film once. After that, every new video
+    comes from text alone. No re-shooting, no manual editing, and it runs on a
+    single graphics card using open source models that are cleared for
+    commercial use. What you're watching right now was made that way, from a
+    few lines of text.
+
+voice:
+  engine: chatterbox
+  reference_audio: assets/presenter/voice_sample.wav
+  exaggeration: 0.5
+  cfg_weight: 0.5
+  temperature: 0.8
+  seed: 0
+  max_chars_per_chunk: 280
+
+video:
+  engine: latentsync
+  presenter_clip: assets/presenter/clip_01.mp4   # point at whichever clip scored best
+  inference_steps: 30
+  guidance_scale: 1.5
+  resolution: 512
+  seed: 1247
+  extend_mode: pingpong
+  enable_deepcache: false
+
+captions:
+  enabled: false
+
+runtime:
+  device: auto
+  work_dir: work
