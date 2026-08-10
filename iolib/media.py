@@ -273,6 +273,26 @@ def ensure_wav(src: Path, dst: Path, *, sample_rate: int = 16000, mono: bool = T
     return dst
 
 
+def trim_video(src: Path, dst: Path, seconds: float) -> Path:
+    """Cut ``src`` down to roughly ``seconds`` from its start.
+
+    Stream-copied, so this costs almost nothing and never re-encodes. The cut
+    lands on the next keyframe, which means the result can run slightly long -
+    fine for every caller here, which only need "at least this much".
+    """
+    src, dst = Path(src), Path(dst)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    run([
+        _exe("ffmpeg"), "-y", "-v", "error",
+        "-i", str(src),
+        "-t", f"{seconds:.3f}",
+        "-c", "copy",
+        "-avoid_negative_ts", "make_zero",
+        str(dst),
+    ])
+    return dst
+
+
 def time_stretch(src: Path, dst: Path, factor: float) -> Path:
     """Change speech tempo without shifting pitch.
 

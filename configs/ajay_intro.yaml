@@ -44,7 +44,11 @@ video:
   engine: latentsync
   presenter_clip: assets/presenter/dr ajay avtar 5 c50.mp4
   inference_steps: 30
-  guidance_scale: 1.5
+  # 1.5 (LatentSync default) leaves lips never fully closing: measured p05
+  # aperture 0.0154 vs 0.0115 in Dr Ajay's real speech, so every M/B/P stayed
+  # slightly open - the "mushy" look. 2.0 reproduces his own articulation
+  # dynamics within 3% and drops the audio-video lag from -4 frames to 0.
+  guidance_scale: 2.0
   resolution: 512
   seed: 1247
   extend_mode: pingpong

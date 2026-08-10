@@ -19,6 +19,7 @@ opt back into upstream's detector for comparison — never for commercial output
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -73,7 +74,11 @@ def _shell_safe_clip(clip: Path, scratch: Path) -> Path:
     our own scratch directory and hand that over. A symlink costs nothing; only if
     the filesystem refuses one do we fall back to copying.
     """
-    clip = Path(clip)
+    # Absolute, but *not* resolved: latentsync_runner chdir()s into the vendor
+    # checkout, so a relative path stops resolving there - while .resolve() would
+    # follow the symlink we are about to create straight back to the unsafe name.
+    clip = Path(os.path.abspath(clip))
+    scratch = Path(os.path.abspath(scratch))
     if not (set(str(clip)) & _SHELL_UNSAFE):
         return clip
 
@@ -234,6 +239,27 @@ def run(
     )
 
     driving_clip = presenter_clip
+
+    # LatentSync's read_video decodes the *entire* clip into RAM before
+    # loop_video trims it to the audio's length. A 260s 1080x1920 source is
+    # ~40 GB of frames and minutes of CPU decode to render 27s of output - with
+    # the GPU sitting idle throughout. Measured on this footage, trimming first
+    # took per-chunk time from ~90s to ~35s. The margin keeps a little slack so
+    # the keyframe-aligned cut can never land short of the audio.
+    _TRIM_MARGIN_S = 2.0
+    if video_info.duration > audio_duration + _TRIM_MARGIN_S + 1.0:
+        trimmed = media.trim_video(
+            driving_clip, scratch / "trimmed_clip.mp4", audio_duration + _TRIM_MARGIN_S
+        )
+        kept = media.probe_duration(trimmed)
+        print(
+            f"[lipsync] trimmed driving clip {video_info.duration:.1f}s -> {kept:.1f}s "
+            "(only the audio's worth is needed; upstream decodes the whole file)",
+            flush=True,
+        )
+        driving_clip = trimmed
+        video_info = media.probe_video(trimmed)
+
     if video_info.duration < audio_duration:
         driving_clip = media.extend_video(
             presenter_clip, scratch / "extended_clip.mp4", audio_duration,
@@ -251,11 +277,10 @@ def run(
         "--latentsync-root", str(LATENTSYNC_ROOT),
         "--unet-config-path", unet_config_rel,
         "--inference-ckpt-path", str(unet_ckpt.resolve()),
-        # Deliberately not .resolve()'d: when _shell_safe_clip has staged a
-        # symlink to dodge spaces in the original filename, resolving would
-        # follow it straight back to the unusable path. Every branch that
-        # assigns driving_clip already produces an absolute path.
-        "--video-path", str(driving_clip),
+        # abspath, not resolve: the runner chdir()s into the vendor checkout so
+        # this must be absolute, but resolve() would follow the symlink that
+        # _shell_safe_clip may have staged straight back to the unsafe filename.
+        "--video-path", os.path.abspath(driving_clip),
         "--audio-path", str(voice_audio.resolve()),
         "--video-out-path", str(out_path.resolve()),
         "--inference-steps", str(inference_steps),
