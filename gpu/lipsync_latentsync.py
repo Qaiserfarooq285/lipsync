@@ -251,7 +251,11 @@ def run(
         "--latentsync-root", str(LATENTSYNC_ROOT),
         "--unet-config-path", unet_config_rel,
         "--inference-ckpt-path", str(unet_ckpt.resolve()),
-        "--video-path", str(driving_clip.resolve()),
+        # Deliberately not .resolve()'d: when _shell_safe_clip has staged a
+        # symlink to dodge spaces in the original filename, resolving would
+        # follow it straight back to the unusable path. Every branch that
+        # assigns driving_clip already produces an absolute path.
+        "--video-path", str(driving_clip),
         "--audio-path", str(voice_audio.resolve()),
         "--video-out-path", str(out_path.resolve()),
         "--inference-steps", str(inference_steps),

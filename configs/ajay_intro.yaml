@@ -29,12 +29,14 @@ voice:
   engine: chatterbox
   reference_audio: assets/presenter/voice_sample.wav
   exaggeration: 0.5
-  # At the 0.5 default this script came out at 269 words/min - roughly 1.8x a
-  # normal presenter pace, which reads as rushed and makes the lip-sync look
-  # frantic. Lowering cfg_weight loosens adherence to the reference's cadence
-  # and slows delivery.
-  cfg_weight: 0.3
+  # Kept at the default: dropping this to 0.3 was tried against the pacing
+  # problem below and moved it only 269 -> 254 wpm, while loosening how closely
+  # the clone tracks the reference. Pacing is handled by `speed` instead.
+  cfg_weight: 0.5
   temperature: 0.8
+  # Raw synthesis lands at ~254 wpm, roughly 1.7x a normal presenter delivery.
+  # 0.75 brings it to ~190 wpm - energetic but unhurried. Pitch is preserved.
+  speed: 0.75
   seed: 0
   max_chars_per_chunk: 280
 
