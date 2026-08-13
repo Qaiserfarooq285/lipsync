@@ -41,6 +41,12 @@ voice:
   max_chars_per_chunk: 280
 
 video:
+  # LatentSync 1.6 @512 is the settled choice for this footage.
+  # 1.5 @256 was rendered and rejected on inspection: it leaves a brighter,
+  # fuller mouth interior (40.72% near-black vs 43.09%, luminance 65.0 vs
+  # 55.1) but it is soft enough to destroy the lip structure, which reads
+  # worse than the dark gap it fixes. Upstream released 1.6 to fix exactly
+  # that blurriness. Do not switch to resolution 256 for this presenter.
   engine: latentsync
   presenter_clip: assets/presenter/dr ajay avtar 5 c50.mp4
   inference_steps: 30

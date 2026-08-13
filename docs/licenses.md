@@ -103,3 +103,30 @@ The resolution disadvantage is independent of that and is the dominant factor.
 Note also that creativeml-openrail-m is not a plain permissive licence: it
 permits commercial use but attaches use-based restrictions. That would need
 reading in full before shipping anything built on it.
+
+## Engine selection for this presenter (settled)
+
+Every alternative below was rendered on the same 6s slice of the real footage and
+measured with `scripts/lipsync_metrics.py`, then judged by eye. The eye overruled
+the metric twice, so both are recorded.
+
+| Option | near-black | interior lum | verdict |
+|---|---|---|---|
+| source (real footage) | 23.11% | 83.5 | the target |
+| **LatentSync 1.6 @512, guidance 1.5** | 43.09% | 55.1 | **chosen** |
+| LatentSync 1.5 @256 | 40.72% | 65.0 | rejected - softness destroys lip structure |
+| MuseTalk v1.5 @256 | 52.37% | 42.1 | rejected - smears the whole lower face |
+
+Also tried and refuted, so they need not be retried: raising `guidance_scale`
+(more lip travel but deeper voids, 33% -> 42%), inference steps and seed (noise),
+selecting a different take (33 windows across all three clips span only
+20.4-34.1% near-black), 2x source upscale (the apparent gain was lanczos
+lightening dark pixels), and a mouth-void lift post-process (turns the black
+hole grey rather than into teeth; kept as opt-in in `gpu/enhance_mouth.py`).
+
+The residual gap is the footage, not the engine. This presenter's mouth interior
+measures 23% near-black where LatentSync's own demo subject measures 10%, and
+the engine's penalty on its own demo clip is only +1.33 points. Lighting that
+reaches inside the mouth, and tighter framing, would move output quality further
+than any remaining software lever. Use `python -m core.check_footage <clip>` to
+score takes before committing to one.
