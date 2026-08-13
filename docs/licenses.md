@@ -130,3 +130,28 @@ the engine's penalty on its own demo clip is only +1.33 points. Lighting that
 reaches inside the mouth, and tighter framing, would move output quality further
 than any remaining software lever. Use `python -m core.check_footage <clip>` to
 score takes before committing to one.
+
+## Lighting is the dominant factor (controlled test)
+
+Run to settle whether the residual dark-mouth artefact is the engine or the
+footage. Identical engine, settings, voice and script; only the source clip
+differs. LatentSync 1.5 @256 was used because 512 did not fit the free VRAM at
+the time - what matters is that both clips used the same configuration.
+
+| clip | source near-black | output near-black | engine penalty | output flicker |
+|---|---|---|---|---|
+| Ajay (mouth interior in shadow) | 23.11% | 35.79% | **+12.68 pts** | 15.15 |
+| LatentSync demo1 (well lit) | 5.91% | **9.20%** | **+3.29 pts** | **4.78** |
+
+The well-lit clip takes roughly a quarter of the damage and ends with almost no
+void. Lighting also drives the other two complaints: the well-lit output keeps
+far more lip travel (-10.4% against its source, versus -30.8% for Ajay) and
+flickers about three times less.
+
+So the pipeline is not the limiting factor for this presenter, and no further
+parameter work will close the gap. Fill light that actually reaches inside the
+mouth is worth more than every software lever tested combined.
+
+Note: LatentSync's demo1 subject was used here as a lighting reference for an
+internal diagnostic only. It is ByteDance's openly-licensed demo asset, and that
+render is not a deliverable.
