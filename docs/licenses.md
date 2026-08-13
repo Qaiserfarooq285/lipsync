@@ -71,3 +71,35 @@ real, distributed commercial output.
 6. **Synthetic media disclosure.** The EU AI Act Article 50 requires deepfake content to
    be labelled. Consider burning a disclosure into distributed output. Chatterbox's
    Perth audio watermark is left enabled to support provenance.
+
+## Evaluated and rejected
+
+| Component | Weights license | Commercial? | Outcome |
+|---|---|---|---|
+| [MuseTalk v1.5](https://github.com/TMElyralab/MuseTalk) | creativeml-openrail-m ("available for any purpose, even commercially") | ⚠️ Yes, with OpenRAIL use-restrictions | Tested as a lighter alternative to LatentSync. **Rejected on quality** — see below. |
+| [DWPose](https://github.com/IDEA-Research/DWPose) | Apache 2.0 | ✅ Yes | Only needed by MuseTalk; bypassed via MediaPipe. Not installed. |
+
+MuseTalk was evaluated because it is architecturally different (single-pass VAE
+inpainting rather than iterative diffusion), roughly 5x faster, and works at a
+resolution closer to this project's native face size. On the same 6s slice of
+real client footage it measured materially worse than LatentSync on the defect
+that motivated the trial:
+
+    source (real)   23.11% near-black inside the mouth, interior luminance 83.5
+    LatentSync 1.5  43.09%                                                55.1
+    MuseTalk v1.5   52.37%                                                42.1
+
+Visual inspection agreed: the whole lower face is smeared, with beard detail
+lost. The cause is structural — MuseTalk squashes a tall crop (roughly 259x414px
+here) into a square 256x256 input, so this footage is both downscaled and
+aspect-distorted, where LatentSync works at 512.
+
+Caveat on the comparison: our trial substituted MediaPipe for MuseTalk's
+mmpose/dwpose landmarks (gpu/patches/musetalk_landmarks.py) to avoid a fragile
+~3 GB MMLab install. The crop geometry was checked against upstream's formula
+and the nose anchor tuned, but a run with genuine dwpose landmarks could differ.
+The resolution disadvantage is independent of that and is the dominant factor.
+
+Note also that creativeml-openrail-m is not a plain permissive licence: it
+permits commercial use but attaches use-based restrictions. That would need
+reading in full before shipping anything built on it.
