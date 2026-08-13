@@ -130,6 +130,11 @@ def run_stage(
     # Keep HF/torch caches out of $HOME so Colab runs can point them at Drive.
     env.setdefault("HF_HOME", str(REPO_ROOT / "weights" / "hf"))
     env.setdefault("TORCH_HOME", str(REPO_ROOT / "weights" / "torch"))
+    # These renders allocate in large, uneven blocks and run on a card that is
+    # often shared, so the allocator ends up holding a lot of reserved-but-
+    # unusable memory. One run died on a 512 MiB request with ~1 GB reserved and
+    # free. Expandable segments let those reservations be reused.
+    env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
     if extra_env:
         env.update(extra_env)
 

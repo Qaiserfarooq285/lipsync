@@ -43,12 +43,19 @@ _VERSION_PROFILE = {
 
 #: Minimum free VRAM to attempt each version.
 #:
-#: Upstream's README quotes 8 GB for 1.5 and 18 GB for 1.6. The 1.6 figure
-#: assumes no VAE/attention slicing: measured here, 1.6 at 512px peaks around
-#: 7.5 GB with ``low_vram`` on (which is the default for that profile), so the
-#: literal upstream number would refuse a configuration that demonstrably runs.
-#: These are the slicing-enabled numbers, with headroom.
-_VRAM_MIN_MB = {"1.5": 8500, "1.6": 9500}
+#: Upstream's README quotes 8 GB for 1.5 and 18 GB for 1.6. Neither figure held
+#: up when measured here, and both were blocking configurations that run fine:
+#:
+#:   1.6 at 512px peaks ~7.5 GB with ``low_vram`` slicing on (the default for
+#:   that profile), against upstream's 18 GB which assumes no slicing.
+#:   1.5 at 256px completed a full render with only 5.0 GB free, against
+#:   upstream's 8 GB - the 256px profile is far cheaper than the 512px one and
+#:   the quoted number does not distinguish them.
+#:
+#: These are the measured numbers with modest headroom. A preflight that refuses
+#: a configuration which demonstrably works is worse than no preflight at all,
+#: so prefer correcting these over telling people to pass --skip-vram-check.
+_VRAM_MIN_MB = {"1.5": 4800, "1.6": 9500}
 
 
 def resolve_version(resolution: int) -> str:
@@ -204,8 +211,16 @@ def run(
 
     # The 512px profile does not fit a consumer card without slicing, so default
     # it on there; at 256px it only costs speed, so leave it off unless asked.
+    # Slicing costs some speed, so it is not on unconditionally - but decide it
+    # from what is actually free, not just the profile. The 256px profile was
+    # assumed cheap enough to skip it and then died in VAE decode with another
+    # process holding 6 GB of the card; headroom, not resolution, is what
+    # determines whether the decode spike fits.
     if low_vram is None:
-        low_vram = version == "1.6"
+        free = free_vram_mb()
+        low_vram = version == "1.6" or (free is not None and free < 8000)
+        if low_vram and version != "1.6":
+            print(f"[lipsync] only {free} MiB free - enabling slicing", flush=True)
 
     if skip_vram_check:
         print("[lipsync] VRAM preflight skipped (--skip-vram-check)", flush=True)
