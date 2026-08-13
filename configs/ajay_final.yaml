@@ -27,7 +27,7 @@ script:
 
 voice:
   engine: chatterbox
-  reference_audio: assets/presenter/voice_sample.wav
+  reference_audio: assets/presenter/voice_sample_slow.wav
   exaggeration: 0.5
   # Kept at the default: dropping this to 0.3 was tried against the pacing
   # problem below and moved it only 269 -> 254 wpm, while loosening how closely
@@ -36,7 +36,7 @@ voice:
   temperature: 0.8
   # Raw synthesis lands at ~254 wpm, roughly 1.7x a normal presenter delivery.
   # 0.75 brings it to ~190 wpm - energetic but unhurried. Pitch is preserved.
-  speed: 0.75
+  speed: 0.9
   seed: 0
   max_chars_per_chunk: 280
 
@@ -50,7 +50,7 @@ video:
   # dynamics within 3% and drops the audio-video lag from -4 frames to 0.
   guidance_scale: 1.5
   resolution: 512
-  seed: 42
+  seed: 1247
   extend_mode: pingpong
   enable_deepcache: false
 
