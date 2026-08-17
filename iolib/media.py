@@ -197,7 +197,17 @@ def extend_video(
 
 
 def mux(video: Path, audio: Path, dst: Path, *, copy_video: bool = True) -> Path:
-    """Combine a video stream with an audio track."""
+    """Combine a video stream with an audio track.
+
+    Deliberately does not pass ``-shortest``. With ``-c:v copy`` ffmpeg can only
+    cut the video at a packet boundary, so ``-shortest`` overshoots: a 25.000s
+    render muxed against 24.957s of speech came out as 24.800s of video, leaving
+    157 ms of audio playing past the last frame at the end of every delivery.
+
+    The two streams are inherently within a frame of each other here - the video
+    is generated from the audio - so letting both run to their natural length is
+    correct, and :func:`check_av_sync` verifies that rather than assuming it.
+    """
     video, audio, dst = Path(video), Path(audio), Path(dst)
     dst.parent.mkdir(parents=True, exist_ok=True)
     vcodec = ["-c:v", "copy"] if copy_video else [
@@ -209,10 +219,85 @@ def mux(video: Path, audio: Path, dst: Path, *, copy_video: bool = True) -> Path
         "-map", "0:v:0", "-map", "1:a:0",
         *vcodec,
         "-c:a", "aac", "-b:a", "192k",
-        "-shortest",
         str(dst),
     ])
     return dst
+
+
+def check_av_sync(path: Path, *, tolerance_s: float = 0.040) -> dict:
+    """Report A/V timing facts about a finished file, from ffprobe not filenames.
+
+    ``tolerance_s`` bounds the acceptable video/audio duration difference. 40 ms
+    is one frame at 25fps; it is a sanity bound on muxing, not a claim about
+    perceptual sync - a file can pass this and still look mistimed if the
+    generated mouth shapes are wrong.
+    """
+    path = Path(path)
+    data = ffprobe_json(path)
+    streams = data.get("streams", [])
+    v = [s for s in streams if s.get("codec_type") == "video"]
+    a = [s for s in streams if s.get("codec_type") == "audio"]
+
+    def _f(x, default=0.0):
+        try:
+            return float(x)
+        except (TypeError, ValueError):
+            return default
+
+    vdur = _f(v[0].get("duration")) if v else 0.0
+    adur = _f(a[0].get("duration")) if a else 0.0
+    report = {
+        "path": str(path),
+        "video_streams": len(v),
+        "audio_streams": len(a),
+        "video_duration": round(vdur, 3),
+        "audio_duration": round(adur, 3),
+        "duration_diff": round(abs(vdur - adur), 3),
+        "video_start": round(_f(v[0].get("start_time")) if v else 0.0, 3),
+        "audio_start": round(_f(a[0].get("start_time")) if a else 0.0, 3),
+        "fps": (v[0].get("avg_frame_rate") if v else None),
+        "frames": int(v[0].get("nb_frames") or 0) if v else 0,
+    }
+
+    problems = []
+    if len(v) != 1:
+        problems.append(f"expected exactly 1 video stream, found {len(v)}")
+    if len(a) != 1:
+        problems.append(f"expected exactly 1 audio stream, found {len(a)}")
+
+    # Direction matters, and a bare difference threshold gets this wrong.
+    # Video is generated in whole frames, so its length quantises up to the next
+    # frame boundary: 24.957s of speech necessarily becomes 25.000s of video.
+    # That overhang is harmless - the final frame simply holds. Audio outlasting
+    # video is the actual defect, because speech then plays with no picture.
+    frame_s = 1.0 / 25.0
+    num, _, den = (report["fps"] or "25/1").partition("/")
+    try:
+        if float(den):
+            frame_s = 1.0 / (float(num) / float(den))
+    except (ValueError, ZeroDivisionError):
+        pass
+
+    audio_overhang = adur - vdur
+    if audio_overhang > tolerance_s:
+        problems.append(
+            f"audio outlasts video by {audio_overhang:.3f}s - that much speech "
+            f"plays past the final frame (tolerance {tolerance_s:.3f}s)"
+        )
+    elif (vdur - adur) > (frame_s + tolerance_s):
+        problems.append(
+            f"video outlasts audio by {vdur - adur:.3f}s, more than one frame "
+            f"({frame_s:.3f}s) of quantisation explains"
+        )
+    for label in ("video_start", "audio_start"):
+        if abs(report[label]) > tolerance_s:
+            problems.append(f"{label} is {report[label]:.3f}s, expected ~0")
+    if v and report["fps"] not in (None, "25/1"):
+        problems.append(f"output is {report['fps']} fps; the pipeline targets 25/1")
+
+    report["problems"] = problems
+    report["ok"] = not problems
+    return report
 
 
 def burn_subtitles(video: Path, srt: Path, dst: Path) -> Path:

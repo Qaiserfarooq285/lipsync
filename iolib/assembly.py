@@ -61,6 +61,21 @@ def finalize(
             dst.unlink()
         muxed.replace(dst)
 
+    # Verify the delivered file rather than trusting that muxing did the right
+    # thing. This check would have caught 157 ms of audio playing past the last
+    # video frame, which shipped unnoticed because nothing looked at the output.
+    report = media.check_av_sync(dst)
+    if report["ok"]:
+        print(
+            f"[assembly] A/V ok: {report['frames']} frames @ {report['fps']}, "
+            f"video {report['video_duration']}s / audio {report['audio_duration']}s",
+            flush=True,
+        )
+    else:
+        print(f"[assembly] WARNING - A/V validation found problems in {dst}:", flush=True)
+        for problem in report["problems"]:
+            print(f"[assembly]   - {problem}", flush=True)
+
     return dst
 
 
