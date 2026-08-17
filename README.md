@@ -92,11 +92,50 @@ python -m core.queue --config configs/batch.yaml
 
 # Environment / license / consent check.
 python -m core.doctor
+
+# Will this clip render well? Answers in ~10s instead of a 20-minute render.
+python -m core.gate presenter.mp4
+
+# Make an arbitrary upload conform (25fps CFR, rotation baked, loudness fixed),
+# and pull the best window of speech out of it as a voice reference.
+python -m core.ingest upload.mp4 --out clean.mp4 --voice-out ref.wav
 ```
 
 Each job is resumable at the stage level (`core/state.py`): re-running after a crash
 skips script/voice/lip-sync/caption steps whose inputs haven't changed. Pass
 `--force` (optionally with specific stage names) to re-run regardless.
+
+## Source-quality gate
+
+`core/gate.py` scores a presenter clip *before* any GPU time is spent, because the
+defect that actually draws complaints — a black gap between the lips — is invisible
+until a render finishes and cannot then be fixed by any setting.
+
+It measures mouth-interior darkness, face size and face-detection rate, and returns
+`accept` / `warn` / `reject` with a reason. `runtime.gate` controls what the pipeline
+does with that:
+
+| mode | behaviour |
+|---|---|
+| `off` | skip the check |
+| `advisory` *(default)* | print the score and render anyway |
+| `strict` | refuse to render a clip scored `reject` |
+
+Advisory is the default because an operator choosing to render known-marginal footage
+is a legitimate decision. A hosted service should set `strict`.
+
+**Calibration is thin and stated as such.** The darkness thresholds rest on three
+clips with known outcomes (5.91% → best render in the project; 6.43% → good; 23.11% →
+rejected on sight), so the boundary between fine and unacceptable is *interpolated*
+between 6% and 23%, not fitted. `gate.record_outcome()` exists to accumulate real
+source-score/human-rating pairs so it can eventually be fitted instead.
+
+Face size is deliberately **advisory only, never a rejection**. Across those same
+three clips it was anti-correlated with quality — the largest face produced the render
+the client rejected, and the best render came from one of the smallest. The general
+reasoning behind `core/check_footage.py`'s bands (fewer pixels means less detail) is
+sound, but nothing measured here was small enough to test it, so no boundary is
+asserted.
 
 ## Consent gate
 

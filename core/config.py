@@ -78,6 +78,14 @@ DEFAULTS: dict[str, Any] = {
         "drive_dir": None,
         "keep_intermediates": True,
         "dry_run": False,
+        # Source-quality admission check (see core.gate). off | advisory | strict.
+        #
+        # Advisory by default: it prints what it measured and renders anyway.
+        # Strict refuses to spend GPU time on a clip scored REJECT, which is what
+        # a hosted service wants - but it is not the default, because a local
+        # operator deciding to render known-marginal footage is a legitimate
+        # choice and the gate should not overrule it silently.
+        "gate": "advisory",
     },
 }
 
@@ -207,6 +215,8 @@ class JobConfig:
             problems.append("captions.mode must be srt|burn")
         if self.runtime.get("device") not in {"auto", "cuda", "cpu"}:
             problems.append("runtime.device must be auto|cuda|cpu")
+        if self.runtime.get("gate") not in {"off", "advisory", "strict"}:
+            problems.append("runtime.gate must be off|advisory|strict")
 
         return problems
 

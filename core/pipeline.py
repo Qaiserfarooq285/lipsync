@@ -25,6 +25,47 @@ class PipelineError(RuntimeError):
     pass
 
 
+def _check_source_quality(cfg: JobConfig) -> None:
+    """Score the presenter clip before committing a GPU to it.
+
+    Runs ahead of every stage deliberately. The measurement costs about ten
+    seconds against a twenty-minute render, and the failure it predicts - a
+    black gap between the lips - is invisible until the render finishes and is
+    then unfixable by any setting.
+    """
+    mode = cfg.runtime.get("gate", "advisory")
+    if mode == "off":
+        return
+
+    from core import gate
+
+    result = gate.evaluate(cfg.presenter_clip)
+    q = result.measured.get("quality") or {}
+    detail = ", ".join(
+        f"{k} {v}" for k, v in (
+            ("mouth near-black", f"{q['near_black_pct']:.1f}%" if q.get("near_black_pct") is not None else None),
+            ("face", f"{q['face_frac'] * 100:.0f}% of frame" if q.get("face_frac") is not None else None),
+        ) if v
+    )
+    print(f"[pipeline] [{cfg.name}] source quality: {result.verdict.upper()}"
+          + (f" ({detail})" if detail else ""), flush=True)
+    for reason in result.reasons:
+        print(f"[pipeline]   - {reason}", flush=True)
+
+    if result.verdict == gate.REJECT:
+        for advice in result.advice:
+            print(f"[pipeline]   > {advice}", flush=True)
+        if mode == "strict":
+            raise PipelineError(
+                f"source clip scored REJECT and runtime.gate is 'strict': "
+                f"{'; '.join(result.reasons)}"
+            )
+        print(
+            "[pipeline]   (runtime.gate is 'advisory' - rendering anyway; "
+            "set it to 'strict' to refuse)", flush=True,
+        )
+
+
 def run_job(cfg: JobConfig, *, force: list[str] | None = None) -> Path:
     """Run every stage needed to produce ``cfg``'s final video. Returns its path."""
     force = set(force or [])
@@ -34,6 +75,7 @@ def run_job(cfg: JobConfig, *, force: list[str] | None = None) -> Path:
         raise PipelineError("invalid job config:\n" + "\n".join(f"  - {p}" for p in problems))
 
     assert_allowed(cfg)
+    _check_source_quality(cfg)
 
     cfg.work_dir.mkdir(parents=True, exist_ok=True)
     cfg.output_dir.mkdir(parents=True, exist_ok=True)
