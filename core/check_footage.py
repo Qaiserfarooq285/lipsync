@@ -4,10 +4,18 @@ Reports the things that actually predict output quality, in priority order:
 how much of the frame the face fills, then resolution, framerate, and whether
 there is usable audio to clone a voice from.
 
-Face size dominates. LatentSync warps the detected face into a 420x560 crop and
-generates at 512x512, so a face occupying ~13% of frame height means the model is
+The reasoning for the face-size bands below: LatentSync warps the detected face
+into a 420x560 crop and generates at 512x512, so a small face means the model is
 inventing most of what it renders and then discarding much of it when compositing
 back. No render setting recovers detail the camera never captured.
+
+**But do not read those bands as a quality prediction.** Measured across the three
+clips in this project with known outcomes, face size was *anti*-correlated with
+result quality: the largest face (16.8% of frame height) produced the render the
+client rejected on sight, and the best render in the project came from a 13.2%
+face that these bands call "poor". Mouth-interior lighting decided all three.
+`core/gate.py` scores that and treats face size as advisory only. Use this module
+to understand a clip; use the gate to decide whether to render it.
 
 CPU-only: the optional face measurement is delegated to the lipsync stage
 environment via subprocess, so this module stays importable anywhere.
