@@ -12,11 +12,13 @@ user who edits the file dishonestly.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
-from core.config import REPO_ROOT, JobConfig
+from core.config import REPO_ROOT, JobConfig, resolve_path
 
 CONSENT_FILE = REPO_ROOT / "CONSENT.md"
 
@@ -71,8 +73,92 @@ def _find_field(text: str, label: str) -> str | None:
     return None
 
 
+#: Fields a per-job consent record must carry, and the value each must hold.
+#: The booleans must be exactly ``True`` - a record that merely *mentions* voice
+#: cloning does not permit it.
+JOB_CONSENT_REQUIRED = {
+    "presenter_name": str,
+    "attested_by": str,
+    "granted_at": str,
+    "scope": str,
+    "voice_cloning": True,
+    "likeness_synthesis": True,
+}
+
+
 class ConsentError(RuntimeError):
     """Raised when a job would touch real media without recorded consent."""
+
+
+def job_consent_status(path: Path) -> tuple[bool, list[str]]:
+    """Validate a per-job consent record.
+
+    ``CONSENT.md`` is a single global declaration covering one presenter, which
+    is right for a workstation running one person's footage and wrong for
+    anything where uploads arrive from different people. A per-job record moves
+    the attestation next to the media it describes, so two jobs cannot share
+    one person's permission.
+
+    This is deliberately *not* a weaker gate. It demands the same affirmations
+    the markdown record does, and requires the booleans to be literally ``True``
+    rather than merely present - a record that names voice cloning without
+    permitting it does not open the gate.
+    """
+    path = Path(path)
+    if not path.is_file():
+        return False, [f"consent record not found: {path}"]
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return False, [f"consent record is unreadable: {exc}"]
+    if not isinstance(record, dict):
+        return False, [f"consent record must be a JSON object: {path}"]
+
+    problems: list[str] = []
+    for field_name, expected in JOB_CONSENT_REQUIRED.items():
+        value = record.get(field_name)
+        if expected is True:
+            if value is not True:
+                problems.append(
+                    f"{field_name} must be true in {path.name}, got {value!r}"
+                )
+        elif not isinstance(value, str) or not value.strip():
+            problems.append(f"missing or empty field in {path.name}: {field_name}")
+        elif _PLACEHOLDER_RE.search(value):
+            problems.append(f"unfilled field in {path.name}: {field_name}")
+    return (not problems), problems
+
+
+def write_job_consent(
+    path: Path,
+    *,
+    presenter_name: str,
+    attested_by: str,
+    scope: str,
+    voice_cloning: bool,
+    likeness_synthesis: bool,
+    source_note: str | None = None,
+) -> Path:
+    """Record one job's consent attestation next to that job's media.
+
+    Written even when the attestation is negative, because "someone declined"
+    is a fact worth keeping - the job then fails the gate on the way in rather
+    than leaving no trace of the attempt.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "presenter_name": presenter_name.strip(),
+        "attested_by": attested_by.strip(),
+        "granted_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "scope": scope.strip(),
+        "voice_cloning": bool(voice_cloning),
+        "likeness_synthesis": bool(likeness_synthesis),
+    }
+    if source_note:
+        record["source_note"] = source_note
+    path.write_text(json.dumps(record, indent=2), encoding="utf-8")
+    return path
 
 
 def _read_consent() -> str:
@@ -131,6 +217,24 @@ def assert_allowed(cfg: JobConfig) -> None:
     needs_consent = [(k, p) for k, p in real_assets if p is not None and not is_exempt(p)]
     if not needs_consent:
         return
+
+    # A per-job record, when the config names one, is what governs this job.
+    # Falling back to CONSENT.md here would be wrong: it would let one
+    # presenter's global declaration authorise a different presenter's upload.
+    record_path = resolve_path(cfg.job.get("consent_record"))
+    if record_path is not None:
+        granted, problems = job_consent_status(record_path)
+        if granted:
+            return
+        listed = "\n".join(f"    - {k}: {p}" for k, p in needs_consent)
+        detail = "\n".join(f"    - {p}" for p in problems)
+        raise ConsentError(
+            "Refusing to run: this job names a consent record that does not grant "
+            "permission.\n"
+            f"  Assets requiring consent:\n{listed}\n"
+            f"  Record: {record_path}\n"
+            f"  Problems:\n{detail}"
+        )
 
     granted, problems = consent_status()
     if granted:
