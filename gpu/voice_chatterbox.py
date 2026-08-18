@@ -50,12 +50,21 @@ def run(
     temperature: float = 0.8,
     seed: int = 0,
     max_chars_per_chunk: int = 280,
-    speed: float = 1.0,
+    speed: float | str = "auto",
 ) -> Path:
     """Synthesise ``text`` in the voice of ``reference_audio``; return the WAV path.
 
     Long scripts are synthesised in sentence-aligned chunks and concatenated —
     Chatterbox's quality degrades on very long single inputs.
+
+    ``speed="auto"`` (the default) measures the raw take's own words-per-minute
+    and derives a corrective tempo factor via :func:`core.ingest.suggest_speed`,
+    rather than requiring every caller to hand-tune a constant per presenter.
+    Chatterbox inherits cadence from the reference sample and routinely lands
+    at 240-270wpm - well past a comfortable presenter pace - with no generation
+    parameter that reliably controls it. Pass an explicit float to bypass this
+    and force a specific tempo instead (existing configs that already tuned one
+    keep working unchanged).
     """
     import torch
     import torchaudio
@@ -124,16 +133,32 @@ def run(
     torchaudio.save(str(out_path), audio, model.sr)
 
     seconds = audio.shape[1] / model.sr
-    if abs(speed - 1.0) >= 1e-3:
+
+    resolved_speed = speed
+    if speed == "auto":
+        # core.ingest is pure-stdlib/ffmpeg (see its own docstring) so it is
+        # importable from this venv despite living in the CPU orchestrator
+        # package - reusing it here keeps the pacing formula in one place
+        # instead of duplicated between the web layer and this stage.
+        from core.ingest import suggest_speed
+
+        decision = suggest_speed(out_path, text)
+        resolved_speed = decision["speed"]
+        print(
+            f"[voice] auto pace: {decision['wpm']:.0f}wpm -> speed x{resolved_speed:.3f} "
+            f"({decision['reason']})", flush=True,
+        )
+
+    if abs(resolved_speed - 1.0) >= 1e-3:
         from iolib import media
 
         tmp = out_path.with_name(out_path.stem + "_raw" + out_path.suffix)
         out_path.replace(tmp)
-        media.time_stretch(tmp, out_path, speed)
+        media.time_stretch(tmp, out_path, resolved_speed)
         tmp.unlink(missing_ok=True)
         stretched = media.probe_duration(out_path)
         print(
-            f"[voice] tempo x{speed:.2f}: {seconds:.2f}s -> {stretched:.2f}s", flush=True
+            f"[voice] tempo x{resolved_speed:.2f}: {seconds:.2f}s -> {stretched:.2f}s", flush=True
         )
         seconds = stretched
 
@@ -150,6 +175,12 @@ def run(
     return out_path
 
 
+def _parse_speed(value: str) -> float | str:
+    if value == "auto":
+        return "auto"
+    return float(value)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Chatterbox voice cloning.")
     ap.add_argument("--text-file", required=True, help="UTF-8 file holding the script")
@@ -162,8 +193,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--max-chars-per-chunk", type=int, default=280)
     ap.add_argument(
-        "--speed", type=float, default=1.0,
-        help="tempo multiplier applied after synthesis; <1 slows delivery, pitch preserved",
+        "--speed", type=_parse_speed, default="auto",
+        help="tempo multiplier applied after synthesis (<1 slows, pitch preserved), "
+             "or 'auto' (default) to derive one from the take's own measured wpm",
     )
     args = ap.parse_args(argv)
 

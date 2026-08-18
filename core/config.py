@@ -45,8 +45,11 @@ DEFAULTS: dict[str, Any] = {
         # Tempo multiplier applied after synthesis, pitch preserved. Chatterbox
         # inherits cadence from the reference sample and often lands far faster
         # than a scripted delivery wants; no generation parameter reliably
-        # controls that. 1.0 = leave as generated.
-        "speed": 1.0,
+        # controls that. "auto" (default) measures the raw take's wpm and
+        # derives a corrective factor, capped so it can't stretch far enough to
+        # damage lip-sync quality - see core.ingest.suggest_speed. Set a float
+        # (e.g. 0.75) to force a specific, hand-tuned tempo instead.
+        "speed": "auto",
     },
     "video": {
         "engine": "latentsync",
