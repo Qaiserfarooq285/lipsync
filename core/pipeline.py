@@ -152,6 +152,14 @@ def run_job(cfg: JobConfig, *, force: list[str] | None = None) -> Path:
         print(f"[pipeline] [{cfg.name}] lip-sync up to date, skipping", flush=True)
 
     # -- 4. captions (optional) ------------------------------------------
+    #
+    # A captions failure must never cost the user their video. The lip-sync
+    # render above is the expensive, primary deliverable; captions is declared
+    # optional in the config precisely because it is a smaller, separable add-on
+    # (a missing venv, a flaky transcription) - and until this was caught, any
+    # failure here raised past this point and aborted assembly, so a user who
+    # ticked "add subtitles" without the captions env installed got nothing at
+    # all instead of a video without subtitles.
     srt_path = None
     if cfg.captions.get("enabled"):
         srt_path = cfg.artifact("srt")
@@ -168,8 +176,13 @@ def run_job(cfg: JobConfig, *, force: list[str] | None = None) -> Path:
             ]
             if cfg.captions.get("verify_against_script"):
                 cap_args += ["--script-file", str(script_path)]
-            envs.run_stage("captions", "gpu.captions_whisperx", cap_args, log_path=log_dir / "captions.log")
-            state.mark_done("captions", captions_fp)
+            try:
+                envs.run_stage("captions", "gpu.captions_whisperx", cap_args, log_path=log_dir / "captions.log")
+                state.mark_done("captions", captions_fp)
+            except envs.StageEnvError as exc:
+                print(f"[pipeline] [{cfg.name}] WARNING - captions failed, delivering "
+                      f"the video without subtitles: {exc}", flush=True)
+                srt_path = None
         else:
             print(f"[pipeline] [{cfg.name}] captions up to date, skipping", flush=True)
 
