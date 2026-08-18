@@ -1,0 +1,9 @@
+# Web GUI — CPU only, no torch. Runs the pipeline as a subprocess, so it needs
+# none of the model stages' conflicting pins.
+#
+#   scripts/setup_envs.sh web
+
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+pyyaml==6.0.2

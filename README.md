@@ -105,6 +105,27 @@ Each job is resumable at the stage level (`core/state.py`): re-running after a c
 skips script/voice/lip-sync/caption steps whose inputs haven't changed. Pass
 `--force` (optionally with specific stage names) to re-run regardless.
 
+## Browser GUI
+
+```bash
+./scripts/setup_envs.sh web
+.venvs/web/bin/python -m web.server        # http://127.0.0.1:8000
+```
+
+Upload a clip, paste a transcript, tick subtitles if you want them, press Create.
+The page carries the shooting guidance, an optional pre-flight footage check, and
+a progress bar driven by the pipeline's actual output rather than a timer.
+
+Render resolution is chosen automatically per job from free VRAM at the moment
+it starts rendering (`web/jobs.py::choose_resolution`) — full quality (512,
+LatentSync 1.6) when at least ~9.5 GB is free, the smaller 1.5 profile otherwise.
+The result page shows which one was actually used.
+
+**This binds to localhost and has no authentication, no rate limiting and no
+per-user isolation.** That suits local use; see `docs/hosting.md` for what has to
+change before it is reachable from anywhere else — including a concurrency bug in
+upstream that currently makes a second GPU worker unsafe.
+
 ## Source-quality gate
 
 `core/gate.py` scores a presenter clip *before* any GPU time is spent, because the

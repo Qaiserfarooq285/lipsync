@@ -231,8 +231,20 @@ def _measure(path: Path, samples: int = SAMPLE_FRAMES) -> dict | None:
     return None
 
 
-def evaluate(clip: str | Path, *, samples: int = SAMPLE_FRAMES) -> GateResult:
-    """Score a source clip and return accept / warn / reject with reasons."""
+def evaluate(
+    clip: str | Path,
+    *,
+    samples: int = SAMPLE_FRAMES,
+    has_audio: bool | None = None,
+) -> GateResult:
+    """Score a source clip and return accept / warn / reject with reasons.
+
+    ``has_audio`` overrides what this reads from ``clip`` itself. Callers that
+    normalise before scoring need it: the driving clip is deliberately stripped
+    of audio (the voice comes from the clone, not the footage), so probing it
+    would report "no audio track" for every upload, including the ones that
+    arrived with perfectly good sound.
+    """
     clip = Path(clip)
     result = GateResult(path=str(clip))
 
@@ -246,10 +258,11 @@ def evaluate(clip: str | Path, *, samples: int = SAMPLE_FRAMES) -> GateResult:
         result.fail(REJECT, f"not a decodable video: {exc}")
         return result
 
+    audio_present = info.has_audio if has_audio is None else bool(has_audio)
     result.measured["container"] = {
         "width": info.width, "height": info.height,
         "fps": round(info.fps, 3), "duration": round(info.duration, 2),
-        "has_audio": info.has_audio,
+        "has_audio": audio_present,
     }
 
     if info.duration < 3.0:
@@ -258,7 +271,7 @@ def evaluate(clip: str | Path, *, samples: int = SAMPLE_FRAMES) -> GateResult:
             "Supply at least a few seconds; the clip is looped to cover the script, "
             "and a very short loop reads as an obvious repeat.",
         )
-    if not info.has_audio:
+    if not audio_present:
         result.fail(
             WARN, "no audio track",
             "A separate voice reference will be required, since none can be "

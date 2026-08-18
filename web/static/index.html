@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Presenter Video</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --ink: #14171f;
+    --muted: #5c6472;
+    --line: #e2e5ea;
+    --accent: #3b5bdb;
+    --accent-ink: #ffffff;
+    --good: #2b8a3e;
+    --good-bg: #ebfbee;
+    --warn: #b8860b;
+    --warn-bg: #fff9db;
+    --bad: #c92a2a;
+    --bad-bg: #fff5f5;
+    --shadow: 0 1px 2px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115; --card: #171a21; --ink: #e8eaee; --muted: #98a1b3;
+      --line: #262b36; --accent: #5c7cfa; --good: #69db7c; --good-bg: #14251a;
+      --warn: #ffd43b; --warn-bg: #2a2413; --bad: #ff8787; --bad-bg: #2a1616;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, sans-serif;
+    padding: 32px 20px 80px;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -.02em; }
+  .sub { color: var(--muted); margin: 0 0 28px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 22px; margin-bottom: 18px; box-shadow: var(--shadow);
+  }
+  .card h2 { font-size: 15px; margin: 0 0 14px; letter-spacing: .01em; }
+  label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px; }
+  .hint { color: var(--muted); font-size: 13px; font-weight: 400; margin: 0 0 8px; }
+  input[type=text], textarea, input[type=file] {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px;
+    background: var(--bg); color: var(--ink); font: inherit;
+  }
+  textarea { min-height: 130px; resize: vertical; }
+  input[type=text]:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .field { margin-bottom: 20px; }
+  .field:last-child { margin-bottom: 0; }
+  .check { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 14px; }
+  .check input { margin-top: 3px; width: 16px; height: 16px; flex: none; accent-color: var(--accent); }
+  .check span { font-size: 14px; }
+  .check .hint { margin: 2px 0 0; }
+  button {
+    font: inherit; font-weight: 600; border-radius: 9px; padding: 11px 20px;
+    border: 1px solid transparent; cursor: pointer;
+  }
+  .primary { background: var(--accent); color: var(--accent-ink); }
+  .primary:disabled { opacity: .5; cursor: not-allowed; }
+  .ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+  /* guidance */
+  .guide { background: var(--good-bg); border-color: color-mix(in srgb, var(--good) 30%, transparent); }
+  .guide h2 { color: var(--good); }
+  .guide ul { margin: 0; padding-left: 18px; }
+  .guide li { margin-bottom: 9px; }
+  .guide li:last-child { margin-bottom: 0; }
+  .guide b { font-weight: 650; }
+  .why { color: var(--muted); font-size: 13px; }
+
+  /* progress */
+  .bar { height: 9px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 16px 0 12px; }
+  .bar > i { display: block; height: 100%; width: 0; border-radius: 99px;
+             background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #22d3ee));
+             transition: width .5s ease; }
+  .status { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+  .status .msg { font-weight: 600; }
+  .status .pct { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; }
+  .spin { display: inline-block; width: 13px; height: 13px; margin-right: 8px; vertical-align: -1px;
+          border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%;
+          animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .elapsed { color: var(--muted); font-size: 13px; margin-top: 10px; }
+
+  /* verdict */
+  .verdict { border-radius: 10px; padding: 14px 16px; margin-top: 14px; font-size: 14px; }
+  .verdict.accept { background: var(--good-bg); color: var(--good); }
+  .verdict.warn   { background: var(--warn-bg); color: var(--warn); }
+  .verdict.reject { background: var(--bad-bg);  color: var(--bad); }
+  .verdict h3 { margin: 0 0 8px; font-size: 14px; }
+  .verdict ul { margin: 6px 0 0; padding-left: 18px; }
+  .verdict .advice { color: var(--ink); opacity: .85; margin-top: 10px; }
+  .metrics { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px;
+             font-size: 13px; color: var(--muted); }
+  .metrics b { display: block; color: var(--ink); font-size: 17px; font-variant-numeric: tabular-nums; }
+
+  video { width: 100%; border-radius: 10px; background: #000; display: block; }
+  a.dl { color: var(--accent); font-weight: 600; text-decoration: none; }
+  a.dl:hover { text-decoration: underline; }
+  .err { background: var(--bad-bg); color: var(--bad); padding: 12px 14px;
+         border-radius: 9px; font-size: 14px; margin-top: 14px; }
+  .hidden { display: none; }
+  .filename { font-size: 13px; color: var(--muted); margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Presenter Video</h1>
+  <p class="sub">Upload a clip of someone talking, paste a script, and get that person
+     delivering the script in their own voice.</p>
+
+  <!-- ─────────── guidance ─────────── -->
+  <div class="card guide">
+    <h2>Before you upload — this decides the result</h2>
+    <ul>
+      <li><b>Light the inside of the mouth.</b> This matters more than everything else
+          combined. If the mouth interior is in shadow, the result gets a dark gap
+          between the lips and no setting fixes it.
+          <div class="why">Measured: a well-lit clip came out almost clean; a clip with the
+          mouth in shadow was rejected on sight. Same model, same settings.</div></li>
+      <li><b>Face the camera.</b> Turning away, or a hand across the face, breaks the
+          alignment for those frames.</li>
+      <li><b>Fill the frame with the head and shoulders.</b> A distant face has less
+          real detail to work from.</li>
+      <li><b>Give it clean audio.</b> The voice is cloned from this clip, so background
+          noise and music get cloned too. A separate clean sample is better.</li>
+      <li><b>A few seconds is enough.</b> The clip is looped to cover your script — it
+          does not need to be as long as the script.</li>
+    </ul>
+  </div>
+
+  <!-- ─────────── form ─────────── -->
+  <form id="form">
+    <div class="card">
+      <h2>Your video</h2>
+
+      <div class="field">
+        <label for="video">Clip of the presenter</label>
+        <p class="hint">MP4 or MOV. Any frame rate — it gets converted automatically.</p>
+        <input type="file" id="video" name="video" accept="video/*" required>
+        <div class="filename" id="videoName"></div>
+        <div class="row" style="margin-top:10px">
+          <button type="button" class="ghost" id="checkBtn">Check this clip first</button>
+          <span class="why">Optional — scores the footage in about ten seconds, before rendering.</span>
+        </div>
+        <div id="checkResult"></div>
+      </div>
+
+      <div class="field">
+        <label for="presenter">Who is in the video?</label>
+        <p class="hint">Used to name the output and to record consent.</p>
+        <input type="text" id="presenter" name="presenter_name" placeholder="e.g. Dr Ajay" required>
+      </div>
+
+      <div class="field">
+        <label for="voice">Separate voice sample <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+        <p class="hint">If your clip's audio is noisy, upload a cleaner recording of the same
+           person to clone from instead.</p>
+        <input type="file" id="voice" name="voice_sample" accept="audio/*,video/*">
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>What should they say?</h2>
+      <div class="field">
+        <label for="script">Transcript</label>
+        <p class="hint">Write it the way it should be spoken. Punctuation controls the pauses.</p>
+        <textarea id="script" name="script" required
+          placeholder="Hello, I'm…"></textarea>
+        <div class="filename"><span id="wordCount">0</span> words &middot; roughly <span id="estTime">0</span>s of speech</div>
+      </div>
+
+      <div class="check">
+        <input type="checkbox" id="captions" name="captions">
+        <span>
+          Add subtitles
+          <div class="hint">Generates a .srt file alongside the video.</div>
+        </span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Permission</h2>
+      <div class="check">
+        <input type="checkbox" id="consent" name="consent_confirmed" required>
+        <span>
+          I have this person's permission to clone their voice and likeness.
+          <div class="hint">This tool synthesises a real person. Confirming is recorded with the job.</div>
+        </span>
+      </div>
+      <div class="row">
+        <button type="submit" class="primary" id="submitBtn">Create video</button>
+        <span class="why" id="queueNote"></span>
+      </div>
+      <div id="formError"></div>
+    </div>
+  </form>
+
+  <!-- ─────────── progress ─────────── -->
+  <div class="card hidden" id="progressCard">
+    <h2>Making your video</h2>
+    <div class="status">
+      <div class="msg"><span class="spin"></span><span id="msg">Starting…</span></div>
+      <div class="pct" id="pct">0%</div>
+    </div>
+    <div class="bar"><i id="barFill"></i></div>
+    <div class="elapsed" id="elapsed"></div>
+    <div id="progressDetail"></div>
+  </div>
+
+  <!-- ─────────── result ─────────── -->
+  <div class="card hidden" id="resultCard">
+    <h2>Your video</h2>
+    <video id="out" controls playsinline></video>
+    <div class="filename" id="resultMeta"></div>
+    <div id="resultNote"></div>
+    <div class="row" style="margin-top:14px">
+      <a class="dl" id="dlVideo" download>Download video</a>
+      <a class="dl hidden" id="dlSrt" download>Download subtitles</a>
+      <button type="button" class="ghost" id="againBtn">Make another</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+  const form = $("form");
+  let pollTimer = null, startedAt = 0;
+
+  // ── script length estimate ──────────────────────────────────────────
+  // 165wpm is the top of the comfortable presenter band this pipeline targets.
+  const WPM = 165;
+  $("script").addEventListener("input", function () {
+    const words = this.value.trim().split(/\s+/).filter(Boolean).length;
+    $("wordCount").textContent = words;
+    $("estTime").textContent = Math.round((words / WPM) * 60);
+  });
+
+  $("video").addEventListener("change", function () {
+    $("videoName").textContent = this.files[0] ? this.files[0].name : "";
+    $("checkResult").innerHTML = "";
+  });
+
+  // ── verdict rendering ───────────────────────────────────────────────
+  function verdictBlock(v) {
+    const cls = v.verdict === "reject" ? "reject" : v.verdict === "warn" ? "warn" : "accept";
+    const title = v.verdict === "reject" ? "This clip will not give a good result"
+                : v.verdict === "warn"   ? "Usable, with some caveats"
+                : "This clip looks good";
+    const m = v.measured || {};
+    let metrics = "";
+    if (m.near_black_pct != null || m.face_frac != null) {
+      metrics = '<div class="metrics">'
+        + (m.near_black_pct != null
+            ? `<div><b>${m.near_black_pct.toFixed(1)}%</b>mouth in shadow</div>` : "")
+        + (m.face_frac != null
+            ? `<div><b>${Math.round(m.face_frac * 100)}%</b>of frame is face</div>` : "")
+        + (m.detect_rate != null
+            ? `<div><b>${Math.round(m.detect_rate * 100)}%</b>frames with a face</div>` : "")
+        + "</div>";
+    }
+    const reasons = (v.reasons || []).map((r) => `<li>${esc(r)}</li>`).join("");
+    const advice = (v.advice || []).map((a) => `<div class="advice">${esc(a)}</div>`).join("");
+    return `<div class="verdict ${cls}"><h3>${title}</h3>`
+         + (reasons ? `<ul>${reasons}</ul>` : "") + advice + metrics + "</div>";
+  }
+
+  function esc(s) {
+    const d = document.createElement("div");
+    d.textContent = String(s);
+    return d.innerHTML;
+  }
+
+  // ── optional pre-check ──────────────────────────────────────────────
+  $("checkBtn").addEventListener("click", async function () {
+    const file = $("video").files[0];
+    if (!file) { $("checkResult").innerHTML = '<div class="err">Choose a video first.</div>'; return; }
+    this.disabled = true;
+    const original = this.textContent;
+    this.textContent = "Checking…";
+    $("checkResult").innerHTML = "";
+    try {
+      const fd = new FormData();
+      fd.append("video", file);
+      const res = await fetch("/api/check", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Check failed.");
+      $("checkResult").innerHTML = verdictBlock(data);
+    } catch (e) {
+      $("checkResult").innerHTML = `<div class="err">${esc(e.message)}</div>`;
+    } finally {
+      this.disabled = false;
+      this.textContent = original;
+    }
+  });
+
+  // ── submit ──────────────────────────────────────────────────────────
+  form.addEventListener("submit", async function (ev) {
+    ev.preventDefault();
+    $("formError").innerHTML = "";
+    $("submitBtn").disabled = true;
+
+    const fd = new FormData();
+    fd.append("video", $("video").files[0]);
+    fd.append("script", $("script").value);
+    fd.append("presenter_name", $("presenter").value);
+    fd.append("captions", $("captions").checked ? "true" : "false");
+    fd.append("consent_confirmed", $("consent").checked ? "true" : "false");
+    if ($("voice").files[0]) fd.append("voice_sample", $("voice").files[0]);
+
+    $("queueNote").textContent = "Uploading…";
+    try {
+      const res = await fetch("/api/jobs", { method: "POST", body: fd });
+      const job = await res.json();
+      if (!res.ok) throw new Error(job.detail || "Could not start the job.");
+      form.classList.add("hidden");
+      document.querySelector(".guide").classList.add("hidden");
+      $("progressCard").classList.remove("hidden");
+      startedAt = Date.now();
+      poll(job.id);
+    } catch (e) {
+      $("formError").innerHTML = `<div class="err">${esc(e.message)}</div>`;
+      $("submitBtn").disabled = false;
+      $("queueNote").textContent = "";
+    }
+  });
+
+  // ── polling ─────────────────────────────────────────────────────────
+  function poll(id) {
+    clearTimeout(pollTimer);
+    fetch(`/api/jobs/${id}`)
+      .then((r) => r.json())
+      .then((job) => {
+        render(job);
+        if (job.status === "done" || job.status === "failed" || job.status === "rejected") return;
+        pollTimer = setTimeout(() => poll(id), 1200);
+      })
+      .catch(() => { pollTimer = setTimeout(() => poll(id), 3000); });
+  }
+
+  function render(job) {
+    $("msg").textContent = job.message || "Working…";
+    const pct = Math.max(0, Math.min(100, job.percent || 0));
+    $("pct").textContent = Math.round(pct) + "%";
+    $("barFill").style.width = pct + "%";
+
+    const secs = Math.round((Date.now() - startedAt) / 1000);
+    $("elapsed").textContent = secs > 4
+      ? `${Math.floor(secs / 60)}m ${String(secs % 60).padStart(2, "0")}s elapsed`
+      : "";
+
+    if (job.status === "rejected") {
+      $("progressCard").querySelector(".spin").classList.add("hidden");
+      $("msg").textContent = "Stopped before rendering.";
+      $("progressDetail").innerHTML = job.gate ? verdictBlock(job.gate) : "";
+      addRetry();
+      return;
+    }
+    if (job.status === "failed") {
+      $("progressCard").querySelector(".spin").classList.add("hidden");
+      $("msg").textContent = "That did not work.";
+      $("progressDetail").innerHTML = `<div class="err">${esc(job.error || "Unknown error.")}</div>`;
+      addRetry();
+      return;
+    }
+    if (job.status === "done") {
+      $("progressCard").classList.add("hidden");
+      $("resultCard").classList.remove("hidden");
+      $("out").src = job.video_url;
+      $("dlVideo").href = job.video_url;
+      if (job.srt_url) {
+        $("dlSrt").href = job.srt_url;
+        $("dlSrt").classList.remove("hidden");
+      }
+
+      const bits = [];
+      if (job.elapsed_seconds != null) {
+        const m = Math.floor(job.elapsed_seconds / 60), s = Math.round(job.elapsed_seconds % 60);
+        bits.push(`Took ${m}m ${String(s).padStart(2, "0")}s`);
+      }
+      if (job.resolution != null) bits.push(`rendered at ${job.resolution}px`);
+      $("resultMeta").textContent = bits.join(" · ");
+
+      // The GPU was shared or busy, so this render used the softer profile -
+      // say so next to the video rather than leaving quality unexplained.
+      if (job.resolution && job.resolution < 512) {
+        const explain = "Lip detail will be a little softer than usual as a result "
+          + "- this is expected under GPU pressure, not a bug. Try again when the "
+          + "GPU is free for full quality.";
+        $("resultNote").innerHTML = '<div class="verdict warn"><h3>Reduced quality this time</h3>'
+          + `<div class="advice">${esc(job.resolution_note || "")} ${explain}</div></div>`;
+      } else {
+        $("resultNote").innerHTML = "";
+      }
+    }
+  }
+
+  function addRetry() {
+    if ($("retryBtn")) return;
+    const b = document.createElement("button");
+    b.id = "retryBtn";
+    b.className = "ghost";
+    b.style.marginTop = "14px";
+    b.textContent = "Try another clip";
+    b.onclick = () => location.reload();
+    $("progressDetail").appendChild(b);
+  }
+
+  $("againBtn").addEventListener("click", () => location.reload());
+})();
+</script>
+</body>
+</html>

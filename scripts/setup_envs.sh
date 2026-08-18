@@ -3,6 +3,7 @@
 #
 #   ./scripts/setup_envs.sh              # orchestrator + voice + lipsync
 #   ./scripts/setup_envs.sh captions     # add the optional captions env
+#   ./scripts/setup_envs.sh web          # add the browser GUI env
 #   ./scripts/setup_envs.sh all          # everything
 #
 # Each GPU stage gets its own venv because their dependency pins are mutually
@@ -54,6 +55,12 @@ fi
 
 if [ "$WHICH" = "captions" ] || [ "$WHICH" = "all" ]; then
   make_env captions 3.12 requirements/captions.txt
+fi
+
+# Web GUI. Separate from the stage envs on purpose: it runs the pipeline as a
+# subprocess and needs none of their conflicting torch pins.
+if [ "$WHICH" = "web" ] || [ "$WHICH" = "all" ]; then
+  make_env web 3.12 requirements/web.txt
 fi
 
 log "Done. Verify with: .venv/bin/python -m core.doctor"
